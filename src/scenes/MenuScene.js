@@ -66,10 +66,8 @@ export default class MenuScene extends Phaser.Scene {
       .setDepth(3);
 
     this.items = [
-      { label: 'BEGIN — L2-1 · 切除', action: () => this.scene.start('Level21') },
+      { label: 'BEGIN — CHAPTER 2', action: () => this.scene.start('Level21') },
       { label: 'HOW TO PLAY', action: () => this.toggleHelp() },
-      { label: 'L2-2 · 拼接 — in development', locked: true },
-      { label: 'L2-3 · 过载 — in development', locked: true },
     ];
     this.sel = 0;
     this.texts = this.items.map((it, i) => {
@@ -89,6 +87,16 @@ export default class MenuScene extends Phaser.Scene {
       return t;
     });
     this.select(0);
+
+    // One continuous chapter — the three forms are not separate levels.
+    this.add
+      .text(GAME_W / 2, 408, 'L2-1 切除  →  L2-2 拼接  →  L2-3 过载', {
+        fontFamily: 'ui-monospace, Menlo, monospace',
+        fontSize: '12px',
+        color: '#3f4a56',
+      })
+      .setOrigin(0.5)
+      .setDepth(3);
 
     this.add
       .text(GAME_W / 2, GAME_H - 30, '↑/↓ — select · ENTER — confirm', {

@@ -6,14 +6,19 @@ import HudScene from './scenes/HudScene.js';
 import RollProtoScene from './scenes/RollProtoScene.js';
 import MenuScene from './scenes/MenuScene.js';
 import Level21Scene from './chapters/ch2/Level21Scene.js';
+import Level22Scene from './chapters/ch2/Level22Scene.js';
 
 // Dev shortcuts:
 //   ?proto=roll  boots the L2-1 torso-rolling feel prototype
-//   ?ch2=1       boots the Chapter 2 flow: menu → L2-1 「切除」
+//   ?ch2=1       boots the Chapter 2 flow: menu → L2-1 → L2-2 → L2-3
 const proto = new URLSearchParams(window.location.search).get('proto');
 const ch2 = new URLSearchParams(window.location.search).get('ch2');
 const scenes =
-  proto === 'roll' ? [RollProtoScene] : ch2 ? [MenuScene, Level21Scene] : [BootScene, GameScene, HudScene];
+  proto === 'roll'
+    ? [RollProtoScene]
+    : ch2
+      ? [MenuScene, Level21Scene, Level22Scene]
+      : [BootScene, GameScene, HudScene];
 
 const config = {
   type: Phaser.AUTO,

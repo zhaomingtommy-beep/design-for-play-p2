@@ -1253,7 +1253,7 @@ export default class Level21Scene extends Phaser.Scene {
           .setScrollFactor(0)
           .setDepth(70);
         const t3 = this.add
-          .text(GAME_W / 2, GAME_H / 2 + 90, 'NEXT — L2-2 · 拼接 (in development)\nENTER — menu', {
+          .text(GAME_W / 2, GAME_H / 2 + 90, 'L2-2 · 拼接', {
             fontFamily: 'ui-monospace, Menlo, monospace',
             fontSize: '13px',
             color: '#7f8b99',
@@ -1267,6 +1267,9 @@ export default class Level21Scene extends Phaser.Scene {
         // Lift the fade overlay or it hides the completion text.
         this.cameras.main.fadeIn(800, 0, 0, 0);
         this.phase = 'DONE';
+        // One continuous chapter: the card holds a beat, then flows
+        // straight into L2-2. ENTER skips the wait.
+        this.time.delayedCall(3400, () => this.advanceToLevel22());
       });
     });
   }
@@ -1370,8 +1373,15 @@ export default class Level21Scene extends Phaser.Scene {
         this.updateEnd(dt);
         break;
       case 'DONE':
-        if (Phaser.Input.Keyboard.JustDown(this.keys.enter)) this.scene.start('Menu');
+        if (Phaser.Input.Keyboard.JustDown(this.keys.enter)) this.advanceToLevel22();
         break;
     }
+  }
+
+  advanceToLevel22() {
+    if (this.advancing) return;
+    this.advancing = true;
+    this.cameras.main.fadeOut(700, 0, 0, 0);
+    this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Level22'));
   }
 }
