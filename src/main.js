@@ -4,11 +4,16 @@ import BootScene from './scenes/BootScene.js';
 import GameScene from './scenes/GameScene.js';
 import HudScene from './scenes/HudScene.js';
 import RollProtoScene from './scenes/RollProtoScene.js';
+import MenuScene from './scenes/MenuScene.js';
+import Level21Scene from './chapters/ch2/Level21Scene.js';
 
-// Dev shortcut: ?proto=roll boots straight into the L2-1 torso-rolling feel
-// prototype, skipping the panorama-heavy main game entirely.
+// Dev shortcuts:
+//   ?proto=roll  boots the L2-1 torso-rolling feel prototype
+//   ?ch2=1       boots the Chapter 2 flow: menu → L2-1 「切除」
 const proto = new URLSearchParams(window.location.search).get('proto');
-const scenes = proto === 'roll' ? [RollProtoScene] : [BootScene, GameScene, HudScene];
+const ch2 = new URLSearchParams(window.location.search).get('ch2');
+const scenes =
+  proto === 'roll' ? [RollProtoScene] : ch2 ? [MenuScene, Level21Scene] : [BootScene, GameScene, HudScene];
 
 const config = {
   type: Phaser.AUTO,
