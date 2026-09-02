@@ -284,6 +284,7 @@ export default class RollProtoScene extends Phaser.Scene {
       speed: 0, // signed speed along the tangent while grounded
       grounded: true,
       angle: 0,
+      dead: false,
     };
 
     // Flesh assembly: body + under-skin lumps + two dangling stumps, all in
@@ -358,6 +359,18 @@ export default class RollProtoScene extends Phaser.Scene {
     }
     const dt = Math.min(deltaMs, 50) / 1000;
     const p = this.p;
+
+    if (p.dead) {
+      // The fall continues for half a second with the camera riding it, then
+      // the impact plays out off-screen: blood on the lens, thud, black.
+      p.vy += TUNE.gravity * dt;
+      p.y += p.vy * dt;
+      p.x += p.vx * dt;
+      this.updateFlesh(dt);
+      if (!this.deathFxDone && this.time.now - this.deathAt > 450) this.runDeathFx();
+      return;
+    }
+
     const k = this.keys;
     const left = k.left.isDown || k.a.isDown;
     const right = k.right.isDown || k.d.isDown;
@@ -368,6 +381,13 @@ export default class RollProtoScene extends Phaser.Scene {
 
     this.updateFlesh(dt);
 
+    // Falling into the void starts the death sequence — the kill plane only
+    // *starts* it; the gore plays out in runDeathFx half a second later.
+    if (p.y > KILL_Y) {
+      p.dead = true;
+      this.deathAt = this.time.now;
+    }
+
     // Camera breathes out with speed.
     const sp = Math.abs(p.grounded ? p.speed : p.vx);
     const targetZoom = Phaser.Math.Linear(
@@ -377,13 +397,80 @@ export default class RollProtoScene extends Phaser.Scene {
     );
     this.cameras.main.setZoom(Phaser.Math.Linear(this.cameras.main.zoom, targetZoom, 0.04));
 
-    // Falling into the void = death. Prototype keeps the gore minimal but the
-    // rule (red pulse, restart at sub-level start) is the shipped one.
-    if (p.y > KILL_Y) this.die();
-
     this.hud.setText(
       `speed ${Math.round(sp)} px/s  ${p.grounded ? 'GROUND' : 'AIR'}  x ${Math.round(p.x)}`,
     );
+  }
+
+  /**
+   * Death by void, per the design doc §6: no instant teleport. The screen
+   * takes the impact — blood thrown up from below the frame, a red pulse, a
+   * low thud — then black, then the sub-level start.
+   */
+  runDeathFx() {
+    this.deathFxDone = true;
+
+    // Blood hits the lens from below.
+    this.add
+      .particles(0, 0, 'proto-mote', {
+        x: { min: 0, max: GAME_W },
+        y: GAME_H + 12,
+        speedY: { min: -760, max: -320 },
+        speedX: { min: -140, max: 140 },
+        gravityY: 1300,
+        lifespan: { min: 500, max: 1100 },
+        quantity: 70,
+        scale: { min: 0.5, max: 2.2 },
+        tint: [0x8e1f24, 0x5c1216, 0xb03036],
+        blendMode: Phaser.BlendModes.ADD,
+        emitting: false,
+      })
+      .setScrollFactor(0)
+      .setDepth(90)
+      .explode(70);
+
+    this.cameras.main.flash(220, 140, 20, 26);
+    this.thud();
+
+    this.cameras.main.fadeOut(750, 0, 0, 0);
+    this.cameras.main.once('camerafadeoutcomplete', () => {
+      this.resetRun();
+      this.cameras.main.fadeIn(420, 0, 0, 0);
+    });
+  }
+
+  /** Low body-hitting-concrete thud, synthesized — no asset. */
+  thud() {
+    try {
+      const ctx = this.sound.context;
+      const t0 = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(95, t0);
+      osc.frequency.exponentialRampToValueAtTime(28, t0 + 0.28);
+      gain.gain.setValueAtTime(0.55, t0);
+      gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.45);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(t0);
+      osc.stop(t0 + 0.45);
+    } catch (e) {
+      /* audio context locked until first gesture; gore still plays */
+    }
+  }
+
+  resetRun() {
+    const p = this.p;
+    p.x = SPAWN.x;
+    p.y = SPAWN.y;
+    p.vx = 0;
+    p.vy = 0;
+    p.speed = 0;
+    p.grounded = true;
+    p.dead = false;
+    this.deathFxDone = false;
+    this.jelly = 0;
+    this.jellyV = 0;
   }
 
   /**
@@ -525,29 +612,5 @@ export default class RollProtoScene extends Phaser.Scene {
       this.squash(-Phaser.Math.Clamp(p.vy / 260, 2, 8)); // flesh flattens on impact
       this.cameras.main.shake(90, 0.003);
     }
-  }
-
-  die() {
-    const p = this.p;
-    this.cameras.main.flash(160, 140, 20, 26);
-    this.add
-      .particles(p.x, KILL_Y - 40, 'proto-mote', {
-        speed: { min: 60, max: 300 },
-        angle: { min: 200, max: 340 },
-        lifespan: 700,
-        quantity: 26,
-        scale: { min: 0.4, max: 1.4 },
-        tint: 0x8e1f24,
-        blendMode: Phaser.BlendModes.ADD,
-        emitting: false,
-      })
-      .setDepth(7)
-      .explode(26);
-    p.x = SPAWN.x;
-    p.y = SPAWN.y;
-    p.vx = 0;
-    p.vy = 0;
-    p.speed = 0;
-    p.grounded = true;
   }
 }
