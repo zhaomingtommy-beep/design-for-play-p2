@@ -20,40 +20,51 @@ import { GAME_W, GAME_H } from '../constants.js';
 const TUNE = {
   radius: 15,
   gravity: 1900,
-  rollAccel: 900, // input push along the slope tangent
-  slopePull: 2400, // how hard gravity drags you down a slope
-  groundFriction: 0.35, // fraction of speed bled per second while rolling
+  rollAccel: 480, // input push along the slope tangent — a torso, not a runner
+  slopePull: 1700, // how hard gravity drags you down a slope
+  groundFriction: 0.45, // fraction of speed bled per second while rolling
   airDrag: 0.06,
-  airControl: 420,
-  hopVelocity: -430, // shoulder hop: enough for a small bump, never a platform
-  maxRoll: 1150, // downhill terminal velocity
-  maxPush: 520, // soft cap for leg-power rolling on gentle ground
-  maxAir: 1400,
+  airControl: 300,
+  hopVelocity: -470, // shoulder hop: clears a debris bump, never a platform
+  maxRoll: 640, // downhill terminal velocity — heavy, not a cannonball
+  maxPush: 300, // soft cap for torso-power rolling on gentle ground
+  maxAir: 800,
+  wallSlope: 0.62, // |t.y| above this = a face too steep to roll up: it is a wall
   landSnap: 10, // max px the contour may fall away per frame before takeoff
   camZoomSlow: 1.08,
-  camZoomFast: 0.84,
+  camZoomFast: 0.9,
 };
 
-// The collapse route: mostly downhill (y grows downward), two bumps to hop,
-// one gap that kills. x grows to the right; this is a horizontal slice of the
-// vertical shaft + ramp section for feel purposes.
+// The collapse route: mostly downhill (y grows downward). The two "spikes"
+// are debris bumps with >50° faces — a torso cannot roll up them, they must
+// be hopped. The small pit at 2000–2090 is a hop check; the big gap at
+// 3050–3350 needs real speed.
 const CONTOUR = [
   { x: 0, y: 320 },
   { x: 350, y: 320 }, // flat spawn pad
   { x: 900, y: 470 }, // first ramp: gentle
   { x: 1150, y: 480 }, // brief flat
-  { x: 1250, y: 452 }, // bump 1 (hop or slam over)
+  { x: 1180, y: 480 },
+  { x: 1210, y: 442 }, // bump 1: steep face up
+  { x: 1240, y: 480 }, // steep face down
   { x: 1700, y: 620 }, // steeper
   { x: 1750, y: 700 }, // drop ledge — becomes airborne
-  { x: 2300, y: 780 },
-  { x: 2420, y: 748 }, // bump 2
+  { x: 1990, y: 778 },
+  // PIT 2000–2140: too wide to roll at torso speed — hop it or die
+  { x: 2150, y: 780 },
+  { x: 2480, y: 780 },
+  { x: 2510, y: 742 }, // bump 2
+  { x: 2540, y: 780 },
   { x: 2950, y: 905 }, // long fast runout
   // GAP 3050–3350: fall in and you die
   { x: 3350, y: 940 },
   { x: 3900, y: 980 }, // landing flats
   { x: 4600, y: 980 },
 ];
-const GAPS = [{ from: 3050, to: 3350 }];
+const GAPS = [
+  { from: 2000, to: 2140 },
+  { from: 3050, to: 3350 },
+];
 const KILL_Y = 1250;
 const SPAWN = { x: 120, y: 290 };
 const WORLD_END = 4620;
@@ -311,6 +322,15 @@ export default class RollProtoScene extends Phaser.Scene {
     const over = Math.abs(p.speed) - cap;
     if (over > 0) p.speed -= Math.sign(p.speed) * over * 3 * dt;
     p.speed = Phaser.Math.Clamp(p.speed, -TUNE.maxRoll, TUNE.maxRoll);
+
+    // A face steeper than wallSlope in the direction of travel is not a slope
+    // to a limbless torso — it is a wall. Bonk and bounce back; this is what
+    // makes debris bumps mandatory hops instead of speed bumps.
+    if (p.speed !== 0 && -t.y * Math.sign(p.speed) > TUNE.wallSlope) {
+      p.speed = -p.speed * 0.22;
+      this.cameras.main.shake(60, 0.002);
+      return;
+    }
 
     let nx = p.x + p.speed * t.x * dt;
 
