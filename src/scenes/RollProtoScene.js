@@ -594,6 +594,8 @@ export default class RollProtoScene extends Phaser.Scene {
     p.vx = Phaser.Math.Clamp(p.vx, -TUNE.maxAir, TUNE.maxAir);
     p.vy = Math.min(p.vy, TUNE.maxAir * 1.4);
 
+    const gyBefore = this.groundAt(p.x);
+
     p.x += p.vx * dt;
     p.y += p.vy * dt;
     if (p.x > WORLD_END - TUNE.radius) {
@@ -602,6 +604,17 @@ export default class RollProtoScene extends Phaser.Scene {
     }
 
     const gy = this.groundAt(p.x);
+
+    // Crossing a gap's far edge: if the body arrives BELOW the lip it does
+    // not get snapped up onto the platform — it slams the edge and goes down
+    // into the void. This is what makes the pit lethal at roll speed instead
+    // of a free teleport to the other side.
+    if (gyBefore === null && gy !== null && p.y + TUNE.radius > gy + 10) {
+      p.dead = true;
+      this.deathAt = this.time.now;
+      return;
+    }
+
     if (gy !== null && p.y + TUNE.radius >= gy && p.vy > 0) {
       // Land: project velocity onto the slope tangent. Steep landings keep
       // most of the speed — momentum is the whole point of this form.
