@@ -366,6 +366,9 @@ export default class RollProtoScene extends Phaser.Scene {
       p.vy += TUNE.gravity * dt;
       p.y += p.vy * dt;
       p.x += p.vx * dt;
+      // Never let the corpse tunnel through terrain during the death fall.
+      const gyDead = this.groundAt(p.x);
+      if (gyDead !== null && p.y + TUNE.radius > gyDead + 4) p.vx = 0;
       this.updateFlesh(dt);
       if (!this.deathFxDone && this.time.now - this.deathAt > 450) this.runDeathFx();
       return;
@@ -595,6 +598,7 @@ export default class RollProtoScene extends Phaser.Scene {
     p.vy = Math.min(p.vy, TUNE.maxAir * 1.4);
 
     const gyBefore = this.groundAt(p.x);
+    const xBefore = p.x;
 
     p.x += p.vx * dt;
     p.y += p.vy * dt;
@@ -610,8 +614,14 @@ export default class RollProtoScene extends Phaser.Scene {
     // into the void. This is what makes the pit lethal at roll speed instead
     // of a free teleport to the other side.
     if (gyBefore === null && gy !== null && p.y + TUNE.radius > gy + 10) {
+      // Slam the edge: push the body back out to the void side of the wall
+      // and ricochet with the horizontal speed killed, or the corpse keeps
+      // its vx / wall overlap and tunnels under the platform on the way down.
       p.dead = true;
+      p.x = xBefore - 2;
+      p.vx = -Math.min(120, Math.abs(p.vx) * 0.25);
       this.deathAt = this.time.now;
+      this.squash(-6);
       return;
     }
 
