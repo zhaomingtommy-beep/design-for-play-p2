@@ -123,15 +123,77 @@ export default class RollProtoScene extends Phaser.Scene {
   // ------------------------------------------------------------------- build
 
   buildTextures() {
-    // Torso: a lumpy rolling body — ribcage blob + head stump + cold AI core.
+    // The torso is NOT a sphere. It is a wet cluster of lumps — ribcage mass,
+    // shoulder, head stump — with creases between the lumps and one cold AI
+    // core glowing through the flesh. Reference: INSIDE's final blob, kept
+    // small enough to read as "what is left of a person".
     const g = this.make.graphics({ add: false });
-    g.fillStyle(0x39414e, 1);
-    g.fillCircle(16, 16, 14);
-    g.fillStyle(0x2b313c, 1);
-    g.fillCircle(22, 9, 6); // shoulder mass
-    g.fillStyle(0x9fd8e8, 1); // AI core — the only light on the body
-    g.fillCircle(12, 14, 3);
-    g.generateTexture('proto-torso', 32, 32);
+
+    // --- blob body (40x40): overlapping flesh mounds, no perfect circle
+    const FLESH = 0xa08a83;
+    const FLESH_HI = 0xc4aca2;
+    const FLESH_LO = 0x5d4b48;
+    const lumps = [
+      [20, 22, 13], // ribcage mass
+      [12, 17, 9], // side slack
+      [28, 15, 8], // shoulder
+      [25, 29, 8], // hip sag
+      [11, 27, 7], // lower slack
+      [30, 9, 5], // head stump
+    ];
+    lumps.forEach(([x, y, r]) => {
+      g.fillStyle(FLESH, 1);
+      g.fillCircle(x, y, r);
+    });
+    // top-left sheen on each mound — wet flesh, not matte rubber
+    lumps.forEach(([x, y, r]) => {
+      g.fillStyle(FLESH_HI, 0.55);
+      g.fillCircle(x - r * 0.28, y - r * 0.32, r * 0.5);
+    });
+    // rim light around the outer silhouette, or the body dies into the dark
+    g.lineStyle(1.5, 0xd8c6bc, 0.75);
+    lumps.forEach(([x, y, r]) => {
+      g.beginPath();
+      g.arc(x, y, r - 0.5, Math.PI * 0.7, Math.PI * 1.5);
+      g.strokePath();
+    });
+    // creases where the mounds meet
+    g.lineStyle(2, FLESH_LO, 0.8);
+    g.beginPath();
+    g.arc(16, 20, 8, 0.3, 1.7);
+    g.strokePath();
+    g.beginPath();
+    g.arc(24, 22, 9, 1.6, 3.0);
+    g.strokePath();
+    g.lineStyle(1, FLESH_LO, 0.6);
+    g.lineBetween(27, 12, 31, 8); // neck crease
+    // surgical blood: one faint smear, not a splatter
+    g.fillStyle(0x6e1f24, 0.5);
+    g.fillEllipse(14, 30, 10, 4);
+    // AI core: cold light under the skin
+    g.fillStyle(0x9fd8e8, 1);
+    g.fillCircle(19, 19, 2.5);
+    g.generateTexture('proto-blob', 40, 40);
+    g.clear();
+
+    // --- sub-surface lump: soft mound that slides under the skin as it rolls
+    g.fillStyle(FLESH_HI, 0.8);
+    g.fillCircle(5, 5, 4);
+    g.fillStyle(FLESH, 0.9);
+    g.fillCircle(6, 6, 3);
+    g.generateTexture('proto-lump', 10, 10);
+    g.clear();
+
+    // --- limb stump: tapered flesh tube with a dark sealed end
+    g.fillStyle(FLESH, 1);
+    g.fillRoundedRect(3, 0, 8, 16, 4);
+    g.fillStyle(FLESH_LO, 1);
+    g.fillEllipse(7, 16, 8, 5); // sealed wound end
+    g.fillStyle(FLESH_HI, 0.5);
+    g.fillRect(4, 1, 3, 10);
+    g.lineStyle(1, 0xd8c6bc, 0.6);
+    g.lineBetween(3, 2, 3, 14);
+    g.generateTexture('proto-stump', 14, 20);
     g.clear();
 
     g.fillStyle(0xffffff, 1);
@@ -223,7 +285,35 @@ export default class RollProtoScene extends Phaser.Scene {
       grounded: true,
       angle: 0,
     };
-    this.torso = this.add.image(this.p.x, this.p.y, 'proto-torso').setDepth(5);
+
+    // Flesh assembly: body + under-skin lumps + two dangling stumps, all in
+    // one container. Jelly scale and stump pendulums are integrated per frame
+    // in updateFlesh().
+    this.blob = this.add.container(this.p.x, this.p.y).setDepth(5);
+    this.bodyImg = this.add.image(0, 0, 'proto-blob');
+
+    this.lumpRing = this.add.container(0, 0);
+    const lumpSpots = [
+      [8, -2],
+      [-6, 5],
+      [2, 9],
+      [-9, -4],
+    ];
+    this.lumps = lumpSpots.map(([lx, ly]) => this.add.image(lx, ly, 'proto-lump'));
+    this.lumpRing.add(this.lumps);
+
+    // Stumps ride the body's rim; swing state lives alongside.
+    this.stumps = [
+      { img: this.add.image(0, 0, 'proto-stump').setOrigin(0.5, 0.2), base: 2.1, swing: 0, swingV: 0 },
+      { img: this.add.image(0, 0, 'proto-stump').setOrigin(0.5, 0.2), base: 4.4, swing: 0, swingV: 0 },
+    ];
+
+    this.blob.add([this.bodyImg, this.lumpRing, ...this.stumps.map((s) => s.img)]);
+
+    this.jelly = 0; // squash/stretch impulse, decays with a spring
+    this.jellyV = 0;
+    this.lastSpinV = 0;
+
     this.coreLight = this.add
       .image(this.p.x, this.p.y, 'proto-mote')
       .setScale(6)
@@ -235,7 +325,7 @@ export default class RollProtoScene extends Phaser.Scene {
 
   buildCamera() {
     this.cameras.main.setBounds(0, 0, 4800, KILL_Y + 200);
-    this.cameras.main.startFollow(this.torso, true, 0.1, 0.1);
+    this.cameras.main.startFollow(this.blob, true, 0.1, 0.1);
     this.cameras.main.setFollowOffset(0, 60);
   }
 
@@ -276,12 +366,7 @@ export default class RollProtoScene extends Phaser.Scene {
     if (p.grounded) this.stepGrounded(dt, { left, right, jump });
     else this.stepAirborne(dt, { left, right, jump });
 
-    // Rolling spin: angular velocity from surface speed.
-    const spinV = p.grounded ? p.speed : p.vx;
-    p.angle += (spinV / TUNE.radius) * dt;
-
-    this.torso.setPosition(p.x, p.y).setRotation(p.angle);
-    this.coreLight.setPosition(p.x, p.y);
+    this.updateFlesh(dt);
 
     // Camera breathes out with speed.
     const sp = Math.abs(p.grounded ? p.speed : p.vx);
@@ -299,6 +384,53 @@ export default class RollProtoScene extends Phaser.Scene {
     this.hud.setText(
       `speed ${Math.round(sp)} px/s  ${p.grounded ? 'GROUND' : 'AIR'}  x ${Math.round(p.x)}`,
     );
+  }
+
+  /**
+   * Soft-body pass. The body image rotates with roll speed while a jelly
+   * spring squashes it perpendicular to the motion; under-skin lumps churn at
+   * a fraction of the body spin; stumps dangle on pendulums whipped by
+   * angular acceleration. None of this touches physics — it is pure flesh.
+   */
+  updateFlesh(dt) {
+    const p = this.p;
+    const spinV = p.grounded ? p.speed : p.vx;
+    p.angle += (spinV / TUNE.radius) * dt;
+
+    // Jelly spring toward rest. Impulses come from squash() on landings,
+    // bonks and takeoffs.
+    this.jellyV += (-this.jelly * 140 - this.jellyV * 10) * dt;
+    this.jelly += this.jellyV * dt;
+    const jx = 1 + this.jelly;
+    const jy = 1 - this.jelly * 0.8;
+    this.blob.setScale(jx, jy);
+    this.blob.setPosition(p.x, p.y);
+
+    this.bodyImg.setRotation(p.angle);
+
+    // Flesh churn: the lumps slide at a third of the body spin plus a slow
+    // idle drift, so the silhouette never reads as a rigid ball.
+    this.lumpRing.setRotation(p.angle * 0.34 + this.time.now * 0.0004);
+
+    // Stump pendulums: dangle toward world-down, whipped by angular accel.
+    const angAccel = (spinV - this.lastSpinV) / Math.max(dt, 1e-4);
+    this.lastSpinV = spinV;
+    const R = TUNE.radius + 3;
+    this.stumps.forEach((st) => {
+      st.swingV += (-st.swing * 60 - st.swingV * 6 - angAccel * 0.004) * dt;
+      st.swing += st.swingV * dt;
+      const anchor = p.angle + st.base;
+      st.img.setPosition(Math.cos(anchor) * R, Math.sin(anchor) * R);
+      // Point down-ish: rest pose hangs along gravity, swing adds the whip.
+      st.img.setRotation(Math.PI / 2 - anchor * 0.22 + st.swing);
+    });
+
+    this.coreLight.setPosition(p.x, p.y);
+  }
+
+  /** Squash impulse: positive = stretch along travel, negative = flatten. */
+  squash(amount) {
+    this.jellyV += amount;
   }
 
   stepGrounded(dt, input) {
@@ -328,6 +460,7 @@ export default class RollProtoScene extends Phaser.Scene {
     // makes debris bumps mandatory hops instead of speed bumps.
     if (p.speed !== 0 && -t.y * Math.sign(p.speed) > TUNE.wallSlope) {
       p.speed = -p.speed * 0.22;
+      this.squash(-5); // splat against the face
       this.cameras.main.shake(60, 0.002);
       return;
     }
@@ -347,6 +480,7 @@ export default class RollProtoScene extends Phaser.Scene {
       p.vx = p.speed * t.x;
       p.vy = TUNE.hopVelocity;
       p.y -= 2;
+      this.squash(4.5); // takeoff stretch
       return;
     }
 
@@ -388,6 +522,7 @@ export default class RollProtoScene extends Phaser.Scene {
       p.speed = p.vx * t.x + p.vy * t.y;
       p.grounded = true;
       p.y = gy - TUNE.radius;
+      this.squash(-Phaser.Math.Clamp(p.vy / 260, 2, 8)); // flesh flattens on impact
       this.cameras.main.shake(90, 0.003);
     }
   }
