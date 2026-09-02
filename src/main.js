@@ -3,6 +3,12 @@ import { GAME_W, GAME_H, GRAVITY } from './constants.js';
 import BootScene from './scenes/BootScene.js';
 import GameScene from './scenes/GameScene.js';
 import HudScene from './scenes/HudScene.js';
+import RollProtoScene from './scenes/RollProtoScene.js';
+
+// Dev shortcut: ?proto=roll boots straight into the L2-1 torso-rolling feel
+// prototype, skipping the panorama-heavy main game entirely.
+const proto = new URLSearchParams(window.location.search).get('proto');
+const scenes = proto === 'roll' ? [RollProtoScene] : [BootScene, GameScene, HudScene];
 
 const config = {
   type: Phaser.AUTO,
@@ -25,7 +31,7 @@ const config = {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
-  scene: [BootScene, GameScene, HudScene],
+  scene: scenes,
 };
 
 const game = new Phaser.Game(config);
