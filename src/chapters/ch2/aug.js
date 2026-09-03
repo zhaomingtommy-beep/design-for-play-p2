@@ -7,7 +7,8 @@ import { Heightfield } from './torso.js';
  *   makeAugTextures   metal-limbed player parts, cyberpsycho parts, shards,
  *                     anchor rings, gibs — all procedural, no assets
  *   AugPlayer         metal humanoid on a Heightfield: walk, chain-jump
- *                     (1.35x human, no double jump), slash attack, grapple arm
+ *                     (no double jump), SHIFT rush, slash attack,
+ *                     web-swing grapple arm
  *   Psycho            surgical-failure enemy: twitchy dashes, windup lunge,
  *                     3 hits to kill, drops shards that feed the parasite
  */
@@ -17,19 +18,27 @@ export const AUG_TUNE = {
   airAccel: 1200,
   airMax: 300,
   gravity: 1900,
-  jumpVelocity: -980, // prosthetic jump = 1.35x the human -730 (design §4.1)
+  jumpVelocity: -760, // restored, not a moon jump — big gaps belong to the arm
   halfH: 30,
   stepSnap: 18, // max ground rise the legs walk over without jumping
   slashCooldown: 300,
   slashReach: 58,
   slashArc: 46, // vertical half-extent of the slash hitbox
-  hitstopMs: 70,
-  killHitstopMs: 120,
+  hitstopMs: 110,
+  killHitstopMs: 200,
   invulnMs: 1200,
-  knockback: 260,
-  armReach: 140,
+  knockback: 340,
+  hitPopVy: -170, // hits lift the body off the ground
+  killLaunchVy: -330,
+  armReach: 380, // auto-aim grapple — Spider-Man range, not a handshake
   armExtendMs: 120,
-  pullSpeed: 900,
+  swingPump: 980, // tangential accel from A/D while swinging
+  swingReel: 260, // the winch zips him up into the arc, Spider-Man style
+  swingReleaseBoost: 1.14,
+  swingJumpKick: 140, // extra upward kick when releasing with SPACE
+  dashSpeed: 950, // SHIFT — rush
+  dashMs: 180,
+  dashCooldownMs: 700,
   lives: 3,
 };
 
@@ -190,6 +199,8 @@ export class AugPlayer {
     this.lives = AUG_TUNE.lives;
     this.invulnUntil = 0;
     this.slashReadyAt = 0;
+    this.dashReadyAt = 0;
+    this.dashUntil = 0;
     this.shards = 0; // absorbed metal — the parasite's growth counter
 
     this.fig = scene.add.container(this.p.x, this.p.y).setDepth(5);
@@ -232,12 +243,30 @@ export class AugPlayer {
   }
 
   /**
-   * Platformer step. input: {left,right,jump}. Returns 'land' on touchdown.
+   * Platformer step. input: {left,right,jump,dash}. Returns 'land' on
+   * touchdown, 'dash' on the frame a rush starts, 'dashing' mid-rush.
    * Jump: grounded only, chain on landing, NO double jump (design §0.5).
+   * Rush: SHIFT burst — horizontal, gravity suspended, short cooldown.
    */
   step(dt, input, { worldEnd = Infinity } = {}) {
     const p = this.p;
     const T = AUG_TUNE;
+    const now = this.scene.time.now;
+
+    if (input.dash && now >= this.dashReadyAt && !p.dead) {
+      this.dashReadyAt = now + T.dashCooldownMs;
+      this.dashUntil = now + T.dashMs;
+      p.dashDir = input.left && !input.right ? -1 : input.right && !input.left ? 1 : p.facing;
+      p.grounded = false;
+      p.vy = 0;
+    }
+    if (now < this.dashUntil) {
+      p.facing = p.dashDir;
+      p.vx = p.dashDir * T.dashSpeed;
+      p.vy = 0;
+      p.x = Math.min(p.x + p.vx * dt, worldEnd);
+      return 'dashing';
+    }
 
     if (p.grounded) {
       let dir = 0;
@@ -297,9 +326,16 @@ export class AugPlayer {
   /** Walk cycle / pose. Pure visuals. */
   animate(dt) {
     const p = this.p;
+    const now = this.scene.time.now;
     const moving = p.grounded && p.vx !== 0;
     this.walkPhase += Math.abs(p.vx) * dt * 0.05;
-    if (moving) {
+    if (now < this.dashUntil) {
+      // rush: body leans hard, limbs swept back
+      this.parts.legL.setRotation(0.85);
+      this.parts.legR.setRotation(-0.7);
+      this.parts.armL.setRotation(0.7);
+      this.parts.armR.setRotation(0.9);
+    } else if (moving) {
       const sw = Math.sin(this.walkPhase) * 0.6;
       this.parts.legL.setRotation(sw);
       this.parts.legR.setRotation(-sw);
@@ -393,7 +429,10 @@ export class Psycho {
   takeHit(fromX) {
     if (!this.alive) return 'dead';
     this.hp--;
+    this.lastHitFrom = fromX;
     this.p.vx = (this.p.x < fromX ? -1 : 1) * AUG_TUNE.knockback;
+    this.p.vy = AUG_TUNE.hitPopVy; // the blow lifts it off the floor
+    this.p.grounded = false;
     this.state = 'stagger';
     this.stateUntil = this.scene.time.now + PSY_TUNE.staggerMs;
     Object.values(this.parts).forEach((img) => img.setTintFill(0xffffff));
@@ -402,6 +441,8 @@ export class Psycho {
     });
     if (this.hp <= 0) {
       this.alive = false;
+      this.p.vx *= 1.6;
+      this.p.vy = AUG_TUNE.killLaunchVy;
       return 'dead';
     }
     return 'hit';
@@ -518,6 +559,7 @@ export class Psycho {
   }
 
   destroy() {
+    this.scene.tweens.killTweensOf(this.fig);
     this.fig.destroy();
     if (this.glowImg) this.glowImg.destroy();
   }

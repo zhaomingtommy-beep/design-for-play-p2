@@ -66,7 +66,7 @@ export default class MenuScene extends Phaser.Scene {
       .setDepth(3);
 
     this.items = [
-      { label: 'BEGIN — CHAPTER 2', action: () => this.scene.start('Level21') },
+      { label: 'BEGIN — CHAPTER 2', action: () => this.begin() },
       { label: 'HOW TO PLAY', action: () => this.toggleHelp() },
     ];
     this.sel = 0;
@@ -109,20 +109,22 @@ export default class MenuScene extends Phaser.Scene {
 
     // Help overlay (hidden).
     this.help = this.add.container(GAME_W / 2, GAME_H / 2).setDepth(10).setVisible(false);
-    const bg = this.add.rectangle(0, 0, 560, 300, 0x05070c, 0.94).setStrokeStyle(1, 0x27e0f5, 0.4);
+    const bg = this.add.rectangle(0, 0, 560, 330, 0x05070c, 0.94).setStrokeStyle(1, 0x27e0f5, 0.4);
     const helpText = this.add
       .text(
         0,
-        -118,
+        -136,
         [
           'HOW TO PLAY — CHAPTER 2',
           '',
           'move            A / D   or   ← / →',
           'jump            SPACE   (chain on landing, no double jump)',
+          'rush            SHIFT   (a burst of speed, short cooldown)',
           'attack          J   or   left mouse',
-          'interact        E',
+          'swing / yank    E   (web-swing from anchor rings; yank psychos)',
           '',
           'L2-1: you have no limbs. roll. the fall is the only way out.',
+          'L2-2: the gaps are too wide for legs. swing like you mean it.',
           '',
           'SPACE / ENTER — close',
         ].join('\n'),
@@ -144,6 +146,16 @@ export default class MenuScene extends Phaser.Scene {
       space: 'SPACE',
     });
     this.input.keyboard.addCapture(['SPACE', 'UP', 'DOWN']);
+  }
+
+  /** Dive into the skyline — the lens never closes, it only moves. */
+  begin() {
+    if (this.starting) return;
+    this.starting = true;
+    const cam = this.cameras.main;
+    cam.setBounds(0, 0, GAME_W, GAME_H);
+    this.tweens.add({ targets: cam, zoom: 1.7, duration: 520, ease: 'Quad.easeIn' });
+    cam.pan(GAME_W / 2, GAME_H - 150, 520, 'Quad.easeIn', true, () => this.scene.start('Level21'));
   }
 
   select(i) {

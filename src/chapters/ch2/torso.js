@@ -440,10 +440,13 @@ export function synthBuzz(scene, { freq = 160, dur = 0.5, gain = 0.16 } = {}) {
 }
 
 /**
- * Death by void per design §6: no instant teleport. Blood thrown at the lens
- * from below the frame, a red pulse, a low thud — then black, then onRespawn.
+ * Death by void per design §6: no instant teleport, and NO black cut —
+ * the take never breaks. Blood thrown at the lens from below the frame,
+ * a red pulse, a low thud; then the camera tears back to the respawn
+ * point at speed (streaks, whoosh, arrival shake) and onRespawn fires.
+ * Without panTo, onRespawn just fires after the gore beat.
  */
-export function playVoidDeath(scene, onRespawn) {
+export function playVoidDeath(scene, onRespawn, { panTo = null } = {}) {
   scene.add
     .particles(0, 0, 'ch2-mote', {
       x: { min: 0, max: GAME_W },
@@ -465,9 +468,37 @@ export function playVoidDeath(scene, onRespawn) {
   scene.cameras.main.flash(220, 140, 20, 26);
   synthThud(scene);
 
-  scene.cameras.main.fadeOut(750, 0, 0, 0);
-  scene.cameras.main.once('camerafadeoutcomplete', () => {
-    onRespawn();
-    scene.cameras.main.fadeIn(420, 0, 0, 0);
+  if (!panTo) {
+    scene.time.delayedCall(550, onRespawn);
+    return;
+  }
+
+  scene.time.delayedCall(350, () => {
+    const cam = scene.cameras.main;
+    cam.stopFollow();
+    synthBuzz(scene, { freq: 140, dur: 0.55, gain: 0.14 });
+    const streaks = scene.add
+      .particles(0, 0, 'ch2-mote', {
+        x: { min: 0, max: GAME_W },
+        y: { min: 0, max: GAME_H },
+        speedX: { min: 900, max: 1600 },
+        speedY: 0,
+        lifespan: { min: 200, max: 420 },
+        quantity: 3,
+        frequency: 40,
+        scale: { min: 0.3, max: 0.8 },
+        alpha: { start: 0.5, end: 0 },
+        tint: [0x3a4a5c, 0x5d6a78, 0x9fd8e8],
+        blendMode: Phaser.BlendModes.ADD,
+        emitting: true,
+      })
+      .setScrollFactor(0)
+      .setDepth(85);
+    cam.pan(panTo.x, panTo.y, 620, 'Cubic.easeInOut', true, () => {
+      streaks.stop();
+      scene.time.delayedCall(300, () => streaks.destroy());
+      cam.shake(120, 0.004);
+      onRespawn();
+    });
   });
 }

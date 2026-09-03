@@ -79,14 +79,41 @@ export default class Level23Scene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(5);
 
-    this.cameras.main.fadeIn(700, 0, 0, 0);
+    // One take from L2-2: the ascent's dawn light recedes from the frame.
+    const veil = this.add
+      .rectangle(GAME_W / 2, GAME_H / 2, GAME_W, GAME_H, 0x8a94b0, 1)
+      .setScrollFactor(0)
+      .setDepth(100)
+      .setBlendMode(Phaser.BlendModes.ADD);
+    this.tweens.add({ targets: veil, alpha: 0, duration: 900, onComplete: () => veil.destroy() });
+
+    // The parasite's count carries over — a whisper, not a report card.
+    const shards = this.registry.get('ch2.shards');
+    if (shards !== undefined) {
+      const toast = this.add
+        .text(GAME_W / 2, 240, `${shards} shards. it is still hungry.`, {
+          fontFamily: 'ui-monospace, Menlo, monospace',
+          fontSize: '12px',
+          color: '#5d6a78',
+        })
+        .setOrigin(0.5)
+        .setDepth(5)
+        .setAlpha(0);
+      this.tweens.add({
+        targets: toast,
+        alpha: 0.9,
+        duration: 900,
+        delay: 1200,
+        onComplete: () => this.tweens.add({ targets: toast, alpha: 0, duration: 1200, delay: 2600 }),
+      });
+    }
+
     this.keys = this.input.keyboard.addKeys({ enter: 'ENTER' });
   }
 
   update() {
     if (Phaser.Input.Keyboard.JustDown(this.keys.enter)) {
-      this.cameras.main.fadeOut(500, 0, 0, 0);
-      this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Menu'));
+      this.scene.start('Menu');
     }
   }
 }

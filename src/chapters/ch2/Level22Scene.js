@@ -22,61 +22,63 @@ const L2 = {
   ground: 500,
   killY: 780,
   spawn: { x: 120, y: 500 },
-  worldEnd: 5720,
-  elevatorX: 5600,
+  worldEnd: 6000,
+  elevatorX: 5850,
 
   contour: [
     { x: 0, y: 500 },
     { x: 700, y: 505 },
-    { x: 950, y: 505 },
-    { x: 1000, y: 445 }, // rubble wall — first anchor teaches the pull
-    { x: 1050, y: 505 },
+    { x: 940, y: 505 },
+    // GAP A 950–1230: too wide for the jump — the arm teaches itself here
     { x: 1240, y: 505 },
-    // GAP 1250–1410: anchor mid-air
-    { x: 1420, y: 505 },
+    { x: 1680, y: 505 },
+    { x: 1730, y: 468 }, // small rubble bump — a hop, not a wall
+    { x: 1780, y: 505 },
     { x: 2500, y: 500 },
     // Ernest corridor: dead flat, dead quiet
     { x: 3450, y: 500 },
-    // PIT 3500–3680: anchor pull
-    { x: 3690, y: 505 },
-    { x: 4380, y: 505 },
-    // PIT 4400–4600: anchor pull
-    { x: 4610, y: 505 },
-    { x: 4930, y: 505 },
-    // CHASM 4950–5450: three-ring chain
-    { x: 5460, y: 505 },
-    { x: 5720, y: 505 },
+    // PIT B 3500–3820: swing
+    { x: 3830, y: 505 },
+    { x: 4390, y: 505 },
+    // PIT C 4400–4720: swing
+    { x: 4730, y: 505 },
+    { x: 4940, y: 505 },
+    // CHASM D 4950–5600: three-ring web-swing chain
+    { x: 5610, y: 505 },
+    { x: 6000, y: 505 },
   ],
   gaps: [
-    { from: 1250, to: 1410 },
-    { from: 3500, to: 3680 },
-    { from: 4400, to: 4600 },
-    { from: 4950, to: 5450 },
+    { from: 950, to: 1230 },
+    { from: 3500, to: 3820 },
+    { from: 4400, to: 4720 },
+    { from: 4950, to: 5600 },
   ],
 
   anchors: [
-    { x: 1030, y: 455 }, // teaching: over the rubble wall, grabbable standing
-    { x: 1330, y: 445 }, // over the first gap
-    { x: 3590, y: 465 }, // pit 1
-    { x: 4500, y: 465 }, // pit 2
-    { x: 5080, y: 450 }, // chasm ring 1
-    { x: 5210, y: 440 }, // chasm ring 2
-    { x: 5340, y: 450 }, // chasm ring 3
+    { x: 1090, y: 330 }, // teaching: high over gap A — jump can't make it
+    { x: 2000, y: 350 }, // optional: swing into the patrol zone
+    { x: 3660, y: 330 }, // pit B
+    { x: 4560, y: 330 }, // pit C
+    { x: 5100, y: 340 }, // chasm ring 1
+    { x: 5270, y: 318 }, // chasm ring 2
+    { x: 5440, y: 340 }, // chasm ring 3
   ],
 
   psychos: [
-    { x: 1900 },
-    { x: 2250 },
-    { x: 3900 },
-    { x: 4200 },
-    { x: 4750 },
+    { x: 1500 },
+    { x: 1950 },
+    { x: 2300 },
+    { x: 4050 },
+    { x: 4300 },
+    { x: 4800 },
   ],
 
   shardSpots: [
-    [620, 470], [760, 465], [900, 470], [1120, 470],
-    [1500, 470], [1650, 465], [1800, 470], [2100, 465],
-    [2400, 470], [2600, 465], [3750, 470], [4100, 465],
-    [4300, 470], [4680, 465], [5500, 470],
+    [620, 470], [760, 465], [900, 470],
+    [1300, 470], [1500, 465], [1750, 470], [2100, 465], [2350, 470],
+    [3900, 470], [4150, 465], [4350, 470],
+    [4750, 470], [4900, 465],
+    [5650, 470], [5800, 465],
   ],
 
   absorbStages: { half: 12, shoulders: 22 }, // §5.1: scattered → half-covered → shoulder mound
@@ -110,6 +112,8 @@ export default class Level22Scene extends Phaser.Scene {
 
     this.psychos = [];
     this.hitstopUntil = 0;
+    this.slow = 1; // kill slow-mo factor (real-time, independent of Phaser clock)
+    this.ePrev = false;
     this.ernestState = 'idle'; // idle|approach|speak|leave|done
     this.ernestDone = this.registry.get('ch2.ernest') !== undefined;
 
@@ -121,6 +125,7 @@ export default class Level22Scene extends Phaser.Scene {
       jump: 'SPACE',
       j: 'J',
       e: 'E',
+      shift: 'SHIFT',
       enter: 'ENTER',
     });
     this.input.keyboard.addCapture(['SPACE', 'LEFT', 'RIGHT']);
@@ -139,7 +144,14 @@ export default class Level22Scene extends Phaser.Scene {
       .setDepth(60);
 
     this.buildAttachSite();
-    this.cameras.main.fadeIn(700, 0, 0, 0);
+    // One take from L2-1: the prosthetic's cold glow fills the frame, then
+    // recedes into the chamber — no black, the light IS the cut.
+    const veil = this.add
+      .rectangle(GAME_W / 2, GAME_H / 2, GAME_W, GAME_H, 0x9fd8e8, 1)
+      .setScrollFactor(0)
+      .setDepth(100)
+      .setBlendMode(Phaser.BlendModes.ADD);
+    this.tweens.add({ targets: veil, alpha: 0, duration: 750, onComplete: () => veil.destroy() });
   }
 
   // ---------------------------------------------------------------- backdrop
@@ -377,7 +389,7 @@ export default class Level22Scene extends Phaser.Scene {
       }
     } else if (this.attachStep === 4 && t - this.attachDoneAt > 900) {
       this.phase = 'PLAY';
-      this.hint.setText('A/D — move · SPACE — jump (restored, stronger) · J / LMB — slash · E — grapple arm');
+      this.hint.setText('A/D — move · SPACE — jump (restored) · SHIFT — rush · J / LMB — slash · E — swing');
       this.spawnPsychos();
     }
   }
@@ -391,12 +403,18 @@ export default class Level22Scene extends Phaser.Scene {
 
   readInput() {
     const k = this.keys;
+    // E needs a true single-frame edge: JustDown's 50ms window spans ~3
+    // frames, which would attach → detach → re-attach in one press.
+    const eDown = k.e.isDown;
+    const arm = eDown && !this.ePrev;
+    this.ePrev = eDown;
     return {
       left: k.left.isDown || k.a.isDown,
       right: k.right.isDown || k.d.isDown,
       jump: Phaser.Input.Keyboard.JustDown(k.jump),
       slash: Phaser.Input.Keyboard.JustDown(k.j) || this.consumePointerSlash(),
-      arm: Phaser.Input.Keyboard.JustDown(k.e),
+      arm,
+      dash: Phaser.Input.Keyboard.JustDown(k.shift),
     };
   }
 
@@ -420,10 +438,13 @@ export default class Level22Scene extends Phaser.Scene {
     if (this.armState) {
       this.updateArm(dt, now, input);
     } else {
+      const wasDashing = now < this.player.dashUntil;
       const ev = this.player.step(dt, input, { worldEnd: L2.worldEnd });
       if (ev === 'land') {
         synthThud(this, { freq: 130, gain: 0.18, dur: 0.15 });
         this.dustPuff(p.x, p.y);
+      } else if (ev === 'dashing' && !wasDashing) {
+        this.dashFx(p);
       }
       if (input.slash) this.trySlash(now);
       if (input.arm) this.startArm(now);
@@ -448,7 +469,7 @@ export default class Level22Scene extends Phaser.Scene {
     // Void death.
     if (p.y > L2.killY && !p.dead) {
       p.dead = true;
-      playVoidDeath(this, () => this.respawn());
+      playVoidDeath(this, () => this.whipBack(() => this.respawn()));
     }
 
     // The elevator out.
@@ -469,6 +490,25 @@ export default class Level22Scene extends Phaser.Scene {
       .explode(6);
   }
 
+  /** SHIFT rush: whoosh, speed lines, a cold smear behind the body. */
+  dashFx(p) {
+    synthBuzz(this, { freq: 620, dur: 0.16, gain: 0.1 });
+    this.add
+      .particles(p.x, p.y - 32, 'ch2-mote', {
+        speed: { min: 200, max: 420 },
+        angle: p.dashDir > 0 ? { min: 160, max: 200 } : { min: -20, max: 20 },
+        lifespan: { min: 150, max: 320 },
+        quantity: 14,
+        scale: { min: 0.4, max: 1 },
+        tint: [0x9fd8e8, 0xd8f4fc, 0x5d6a78],
+        blendMode: Phaser.BlendModes.ADD,
+        emitting: false,
+      })
+      .setDepth(6)
+      .explode(14);
+    this.cameras.main.shake(70, 0.0018);
+  }
+
   // ------------------------------------------------------------------- slash
 
   trySlash(now) {
@@ -476,6 +516,10 @@ export default class Level22Scene extends Phaser.Scene {
     this.player.slashReadyAt = now + AUG_TUNE.slashCooldown;
     const p = this.player.p;
     const fx = p.facing;
+
+    // Attack momentum: the body commits to the cut.
+    if (p.grounded) p.x += fx * 12;
+    else p.vx += fx * 130;
 
     // Slash flash.
     const arc = this.add
@@ -509,29 +553,61 @@ export default class Level22Scene extends Phaser.Scene {
         }
       }
     }
-    if (anyKill) this.hitstopUntil = now + AUG_TUNE.killHitstopMs;
-    else if (anyHit) this.hitstopUntil = now + AUG_TUNE.hitstopMs;
+    if (anyKill) {
+      this.hitstopUntil = now + AUG_TUNE.killHitstopMs;
+      // Slow-mo punch after the freeze: the world drags, the gore doesn't.
+      this.slow = 0.35;
+      setTimeout(() => {
+        this.slow = 1;
+      }, 150);
+      // Zoom punch.
+      this.tweens.add({
+        targets: this.cameras.main,
+        zoom: 1.06,
+        duration: 80,
+        yoyo: true,
+        ease: 'Quad.easeOut',
+      });
+    } else if (anyHit) {
+      this.hitstopUntil = now + AUG_TUNE.hitstopMs;
+    }
   }
 
   /** Every slash that lands: the full feedback chain (design §4.3). */
   slashFeedback(target, killed) {
     const { x, y } = { x: target.p.x, y: target.p.y - 32 };
-    this.cameras.main.shake(killed ? 140 : 70, killed ? 0.006 : 0.003);
-    // Metal tear: sawtooth sweep down.
-    synthBuzz(this, { freq: killed ? 700 : 520, dur: killed ? 0.4 : 0.22, gain: 0.16 });
+    this.cameras.main.shake(killed ? 190 : 90, killed ? 0.011 : 0.005);
+    // Impact flash — a white-hot point where the blade met.
+    const flash = this.add
+      .image(x, y, 'ch2-mote')
+      .setScale(killed ? 16 : 9)
+      .setTint(0xd8f4fc)
+      .setAlpha(0.8)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(8);
+    this.tweens.add({
+      targets: flash,
+      alpha: 0,
+      scale: killed ? 26 : 14,
+      duration: killed ? 220 : 140,
+      onComplete: () => flash.destroy(),
+    });
+    // Metal tear: sawtooth sweep down + a low body thud on the kill.
+    synthBuzz(this, { freq: killed ? 700 : 520, dur: killed ? 0.5 : 0.22, gain: killed ? 0.22 : 0.16 });
+    if (killed) synthThud(this, { freq: 60, gain: 0.4, dur: 0.5 });
     // Blood AND sparks — flesh and metal in one body.
     this.add
       .particles(x, y, 'ch2-mote', {
-        speed: { min: 80, max: 300 },
-        lifespan: { min: 300, max: 700 },
-        quantity: killed ? 26 : 14,
-        scale: { min: 0.4, max: 1.2 },
+        speed: { min: 100, max: killed ? 460 : 320 },
+        lifespan: { min: 300, max: killed ? 900 : 700 },
+        quantity: killed ? 44 : 22,
+        scale: { min: 0.4, max: killed ? 1.7 : 1.2 },
         tint: [0x8e1f24, 0x5c1216, 0xffc46b, 0xff8a3c],
         blendMode: Phaser.BlendModes.ADD,
         emitting: false,
       })
       .setDepth(6)
-      .explode(killed ? 26 : 14);
+      .explode(killed ? 44 : 22);
     // Killing feeds the parasite: the body drops shards.
     const drops = killed ? 2 : 1;
     for (let i = 0; i < drops; i++) {
@@ -543,20 +619,31 @@ export default class Level22Scene extends Phaser.Scene {
   }
 
   onPsychoDead(t) {
-    // Third hit: the body comes apart — a gout of gibs.
+    // Third hit: the body comes apart — a gout of gibs, the corpse flung.
     this.add
       .particles(t.p.x, t.p.y - 30, 'ch2-gib', {
-        speed: { min: 100, max: 380 },
+        speed: { min: 100, max: 420 },
         angle: { min: 200, max: 340 },
         gravityY: 1500,
-        lifespan: 1300,
-        quantity: 9,
+        lifespan: 1400,
+        quantity: 14,
         rotate: { min: -400, max: 400 },
         emitting: false,
       })
       .setDepth(6)
-      .explode(9);
+      .explode(14);
     synthThud(this, { freq: 80, gain: 0.35, dur: 0.35 });
+    const dir = Math.sign(t.p.x - (t.lastHitFrom ?? this.player.p.x)) || 1;
+    this.tweens.add({
+      targets: t.fig,
+      x: t.p.x + dir * 170,
+      y: t.p.y - 90,
+      rotation: dir * 2.6,
+      alpha: 0,
+      duration: 320,
+      ease: 'Quad.easeOut',
+      onComplete: () => t.fig.setVisible(false),
+    });
     if (t === this.ernest) {
       // The world does not comment (design §4.4). It only remembers.
       this.registry.set('ch2.ernest', 'killed');
@@ -566,20 +653,93 @@ export default class Level22Scene extends Phaser.Scene {
         this.tweens.add({ targets: this.ernest.glowImg, alpha: 0, duration: 800 });
       }
     }
-    t.fig.setVisible(false);
     if (t.glowImg) t.glowImg.setVisible(false);
   }
 
   // ------------------------------------------------------------- grapple arm
 
+  /**
+   * E — web-swing, not a winch (design §4.2, Spider-Man feel):
+   * the claw auto-aims the nearest anchor in a generous radius; the rope
+   * catches, momentum becomes a pendulum; A/D pumps the swing; the rope
+   * reels in slowly so speed builds; SPACE releases with a kick, E drops.
+   * Short-range E on a psycho still yanks it in.
+   */
   startArm(now) {
     const p = this.player.p;
-    this.armState = { phase: 'extend', t0: now, dir: p.facing };
-    const arm = this.player.arm;
-    arm.setVisible(true);
-    arm.setPosition(p.x, p.y - 40);
-    arm.setScale(0.1, 1);
-    arm.setFlipX(p.facing < 0);
+    const sx = p.x;
+    const sy = p.y - 40;
+
+    // Nearest anchor in reach — but motion matters: an anchor ahead of the
+    // swing wins over the one behind, so chains flow forward (Spider-Man
+    // never re-grabs the web he just left).
+    let anchor = null;
+    let anchorScore = Infinity;
+    let anchorDist = 0;
+    const mvx = Math.abs(p.vx) > 60 ? Math.sign(p.vx) : p.facing;
+    for (const a of L2.anchors) {
+      const d = Phaser.Math.Distance.Between(sx, sy, a.x, a.y);
+      if (d >= AUG_TUNE.armReach) continue;
+      const ahead = (a.x - sx) * mvx;
+      const score = d - Math.max(0, ahead) * 1.5;
+      if (score < anchorScore) {
+        anchor = a;
+        anchorScore = score;
+        anchorDist = d;
+      }
+    }
+
+    if (anchor) {
+      this.armState = {
+        phase: 'swing',
+        anchor,
+        ropeLen: Math.max(80, anchorDist),
+        // The winch pulls him up INTO the swing — Spider-Man zip, then arc.
+        minLen: Math.max(70, anchorDist * 0.45),
+        t0: now,
+      };
+      p.grounded = false;
+      p.vy = Math.min(p.vy, -280); // he hops into the swing
+      synthBuzz(this, { freq: 340, dur: 0.1, gain: 0.1 }); // the claw bites
+      this.add
+        .particles(anchor.x, anchor.y, 'ch2-mote', {
+          speed: { min: 40, max: 140 },
+          lifespan: 250,
+          quantity: 8,
+          scale: { min: 0.3, max: 0.6 },
+          tint: [0x9fd8e8, 0xd8f4fc],
+          blendMode: Phaser.BlendModes.ADD,
+          emitting: false,
+        })
+        .setDepth(6)
+        .explode(8);
+      return;
+    }
+
+    // No anchor — is there meat in arm's length?
+    const prey = this.psychos.find(
+      (s) => s.alive && Math.abs(s.p.x - p.x) < 170 && Math.abs(s.p.y - p.y) < 50,
+    );
+    if (prey) {
+      prey.yankTo(p.x + Math.sign(prey.p.x - p.x || p.facing) * 42);
+      this.add
+        .particles(prey.p.x, prey.p.y - 32, 'ch2-mote', {
+          speed: { min: 60, max: 200 },
+          lifespan: 300,
+          quantity: 10,
+          scale: { min: 0.3, max: 0.7 },
+          tint: [0xffc46b, 0x9fd8e8],
+          blendMode: Phaser.BlendModes.ADD,
+          emitting: false,
+        })
+        .setDepth(6)
+        .explode(10);
+      synthBuzz(this, { freq: 220, dur: 0.18, gain: 0.12 });
+      return;
+    }
+
+    // Whiff: the arm shoots out and comes back empty.
+    this.armState = { phase: 'whiff', t0: now, dir: p.facing };
     synthBuzz(this, { freq: 260, dur: 0.12, gain: 0.08 });
   }
 
@@ -587,87 +747,99 @@ export default class Level22Scene extends Phaser.Scene {
     const p = this.player.p;
     const st = this.armState;
     const arm = this.player.arm;
+    const T = AUG_TUNE;
+    arm.setVisible(true);
 
-    if (st.phase === 'extend') {
-      const u = Math.min(1, (now - st.t0) / AUG_TUNE.armExtendMs);
-      arm.setScale((u * AUG_TUNE.armReach) / 24, 1);
-      arm.setPosition(p.x, p.y - 40);
-      if (u >= 1) {
-        // What did the claw find?
-        const tipX = p.x + st.dir * AUG_TUNE.armReach;
-        const tipY = p.y - 40;
-        const anchor = L2.anchors.find((a) => Phaser.Math.Distance.Between(tipX, tipY, a.x, a.y) < 30);
-        const prey = this.psychos.find(
-          (s) => s.alive && (s.p.x - p.x) * st.dir > 0 && Math.abs(s.p.x - p.x) < AUG_TUNE.armReach + 14 && Math.abs(s.p.y - p.y) < 44,
-        );
-        if (anchor) {
-          st.phase = 'pull';
-          st.anchor = anchor;
-          p.grounded = false;
-          synthBuzz(this, { freq: 180, dur: 0.15, gain: 0.12 });
-        } else if (prey) {
-          prey.yankTo(p.x + st.dir * 42);
-          this.add
-            .particles(prey.p.x, prey.p.y - 32, 'ch2-mote', {
-              speed: { min: 60, max: 200 },
-              lifespan: 300,
-              quantity: 10,
-              scale: { min: 0.3, max: 0.7 },
-              tint: [0xffc46b, 0x9fd8e8],
-              blendMode: Phaser.BlendModes.ADD,
-              emitting: false,
-            })
-            .setDepth(6)
-            .explode(10);
-          synthBuzz(this, { freq: 220, dur: 0.18, gain: 0.12 });
-          this.armState = null;
-          arm.setVisible(false);
-        } else {
-          st.phase = 'retract';
-          st.t0 = now;
+    if (st.phase === 'swing') {
+      const a = st.anchor;
+
+      // Release: SPACE flings with a kick, E just lets go.
+      if (input.jump || input.arm) {
+        p.vx *= T.swingReleaseBoost;
+        p.vy *= T.swingReleaseBoost;
+        if (input.jump) p.vy -= T.swingJumpKick;
+        synthBuzz(this, { freq: 500, dur: 0.1, gain: 0.09 });
+        this.armState = null;
+        arm.setVisible(false);
+        return;
+      }
+
+      // Pendulum: gravity, optional A/D pump along the tangent.
+      p.vy += T.gravity * dt;
+      let rx = p.x - a.x;
+      let ry = p.y - 40 - a.y;
+      let dist = Math.hypot(rx, ry) || 1;
+      let pump = 0;
+      if (input.left && !input.right) pump = -1;
+      else if (input.right && !input.left) pump = 1;
+      if (pump !== 0) {
+        let tx = -ry / dist;
+        let ty = rx / dist;
+        if (tx * pump < 0) {
+          tx = -tx;
+          ty = -ty;
+        }
+        // Pump only feeds the swing, never brakes it — holding a direction
+        // builds energy rhythm-free, like a web-swing should.
+        const tv = p.vx * tx + p.vy * ty;
+        if (tv > -60) {
+          p.vx += tx * T.swingPump * dt;
+          p.vy += ty * T.swingPump * dt;
         }
       }
+
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+
+      // The rope winches in fast — the zip that lifts him into the arc.
+      st.ropeLen = Math.max(st.minLen, st.ropeLen - T.swingReel * dt);
+
+      // Rope constraint: clamp to the circle, kill outward radial velocity.
+      rx = p.x - a.x;
+      ry = p.y - 40 - a.y;
+      dist = Math.hypot(rx, ry) || 1;
+      if (dist > st.ropeLen) {
+        const nx = rx / dist;
+        const ny = ry / dist;
+        p.x = a.x + nx * st.ropeLen;
+        p.y = a.y + ny * st.ropeLen + 40;
+        const vr = p.vx * nx + p.vy * ny;
+        if (vr > 0) {
+          p.vx -= vr * nx;
+          p.vy -= vr * ny;
+        }
+      }
+      p.x = Math.min(p.x, L2.worldEnd);
+
+      // Touch down mid-swing: the run continues on foot. Grace window at
+      // the catch — the zip needs a beat to lift him off the floor.
+      const gy = this.field.groundAt(p.x);
+      if (now - st.t0 > 320 && gy !== null && p.y >= gy && p.vy > 0) {
+        p.y = gy;
+        p.vy = 0;
+        p.grounded = true;
+        p.vx = 0;
+        this.armState = null;
+        arm.setVisible(false);
+        synthThud(this, { freq: 130, gain: 0.18, dur: 0.15 });
+        this.dustPuff(p.x, p.y);
+        return;
+      }
+
+      // Draw the arm shoulder → anchor.
+      arm.setPosition(p.x, p.y - 40);
+      arm.setRotation(Math.atan2(a.y - (p.y - 40), a.x - p.x));
+      arm.setFlipY(false);
+      arm.setScale(dist / 24, 1);
       return;
     }
 
-    if (st.phase === 'pull') {
-      const a = st.anchor;
-      const dx = a.x - p.x;
-      const dy = a.y - (p.y - 40);
-      const dist = Math.hypot(dx, dy);
-      // 甩跳: release mid-pull with a jump (design §4.2, expert move).
-      if (input.jump) {
-        p.vx = st.dir * 380;
-        p.vy = -700;
-        p.grounded = false;
-        this.armState = null;
-        arm.setVisible(false);
-        return;
-      }
-      if (dist < 16) {
-        p.vx = st.dir * 350;
-        p.vy = -120;
-        p.grounded = false;
-        this.armState = null;
-        arm.setVisible(false);
-        return;
-      }
-      const stepLen = Math.min(dist, AUG_TUNE.pullSpeed * dt);
-      p.x += (dx / dist) * stepLen;
-      p.y += (dy / dist) * stepLen;
-      // Keep the arm drawn shoulder → anchor.
-      const len = Math.hypot(a.x - p.x, a.y - (p.y - 40));
+    if (st.phase === 'whiff') {
+      const u = Math.min(1, (now - st.t0) / 220);
+      const len = u < 0.5 ? u * 2 * 150 : (1 - u) * 2 * 150; // out, then back
       arm.setPosition(p.x, p.y - 40);
-      arm.setScale(len / 24, 1);
-      arm.setRotation(Math.atan2(a.y - (p.y - 40), a.x - p.x) * (st.dir < 0 ? 0 : 1));
-      if (st.dir < 0) arm.setRotation(Math.atan2((p.y - 40) - a.y, p.x - a.x) + Math.PI);
-      return;
-    }
-
-    if (st.phase === 'retract') {
-      const u = Math.min(1, (now - st.t0) / 100);
-      arm.setScale(((1 - u) * AUG_TUNE.armReach) / 24, 1);
-      arm.setPosition(p.x, p.y - 40);
+      arm.setRotation(st.dir < 0 ? Math.PI : 0);
+      arm.setScale(Math.max(0.1, len) / 24, 1);
       if (u >= 1) {
         this.armState = null;
         arm.setVisible(false);
@@ -772,7 +944,8 @@ export default class Level22Scene extends Phaser.Scene {
     if (this.player.lives <= 0) {
       p.dead = true;
       // Death by psycho (design §6): the thing is on top of him, the screen
-      // pulses red, a metal arm flies past the lens.
+      // pulses red, a metal arm flies past the lens — then the camera WHIPS
+      // back to the section start. No black. The take never breaks.
       this.cameras.main.flash(400, 160, 20, 26);
       synthBuzz(this, { freq: 90, dur: 0.8, gain: 0.2 });
       const armImg = this.add
@@ -801,14 +974,44 @@ export default class Level22Scene extends Phaser.Scene {
         })
         .setDepth(6)
         .explode(40);
-      this.time.delayedCall(700, () => {
-        this.cameras.main.fadeOut(600, 0, 0, 0);
-        this.cameras.main.once('camerafadeoutcomplete', () => {
-          this.respawn();
-          this.cameras.main.fadeIn(420, 0, 0, 0);
-        });
-      });
+      this.time.delayedCall(650, () => this.whipBack(() => this.respawn()));
     }
+  }
+
+  /**
+   * One-take respawn: the camera tears back to the spawn point at speed —
+   * streaks, a whoosh, a hard shake on arrival. Never a black frame.
+   */
+  whipBack(onArrive) {
+    const cam = this.cameras.main;
+    cam.stopFollow();
+    const sx = L2.spawn.x + GAME_W / 2 - 200;
+    const sy = 420;
+    synthBuzz(this, { freq: 140, dur: 0.55, gain: 0.14 });
+    // Speed lines against the pan direction.
+    const streaks = this.add
+      .particles(0, 0, 'ch2-mote', {
+        x: { min: 0, max: GAME_W },
+        y: { min: 0, max: GAME_H },
+        speedX: { min: 900, max: 1600 },
+        speedY: 0,
+        lifespan: { min: 200, max: 420 },
+        quantity: 3,
+        frequency: 40,
+        scale: { min: 0.3, max: 0.8 },
+        alpha: { start: 0.5, end: 0 },
+        tint: [0x3a4a5c, 0x5d6a78, 0x9fd8e8],
+        blendMode: Phaser.BlendModes.ADD,
+        emitting: true,
+      })
+      .setScrollFactor(0)
+      .setDepth(85);
+    cam.pan(sx, sy, 620, 'Cubic.easeInOut', true, () => {
+      streaks.stop();
+      this.time.delayedCall(300, () => streaks.destroy());
+      cam.shake(120, 0.004);
+      onArrive();
+    });
   }
 
   respawn() {
@@ -833,7 +1036,13 @@ export default class Level22Scene extends Phaser.Scene {
       this.ernestState = 'idle';
       if (this.poemBox) this.poemBox.destroy(true);
     }
-    this.cameras.main.centerOn(p.x, 380);
+    const cam = this.cameras.main;
+    cam.centerOn(p.x, 380);
+    cam.startFollow(this.player.fig, true, 0.1, 0.1);
+    cam.setFollowOffset(0, 60);
+    // The body re-forms in a cold blink.
+    cam.flash(140, 159, 216, 232);
+    synthThud(this, { freq: 100, gain: 0.25, dur: 0.3 });
   }
 
   // ------------------------------------------------------------------ ernest
@@ -1027,6 +1236,7 @@ export default class Level22Scene extends Phaser.Scene {
     this.phase = 'END';
     const p = this.player.p;
     this.hint.setText('');
+    this.registry.set('ch2.shards', this.player.shards);
     // He walks into the light; the metal carries him the last steps.
     this.tweens.add({
       targets: p,
@@ -1035,60 +1245,56 @@ export default class Level22Scene extends Phaser.Scene {
       ease: 'Quad.easeOut',
       onUpdate: () => this.player.animate(1 / 60),
     });
-    this.time.delayedCall(1100, () => {
-      this.cameras.main.fadeOut(1200, 0, 0, 0);
-      this.cameras.main.once('camerafadeoutcomplete', () => {
-        this.showEndCard();
-      });
-    });
+    this.time.delayedCall(1100, () => this.riseToLevel23());
   }
 
-  showEndCard() {
-    const t1 = this.add
-      .text(GAME_W / 2, GAME_H / 2 - 40, 'L2-2 · 拼接', {
-        fontFamily: 'ui-monospace, Menlo, monospace',
-        fontSize: '30px',
-        color: '#c9d6e2',
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(70);
-    const t2 = this.add
-      .text(GAME_W / 2, GAME_H / 2 + 8, `COMPLETE — ${this.player.shards} shards absorbed. it is still hungry.`, {
-        fontFamily: 'ui-monospace, Menlo, monospace',
-        fontSize: '13px',
-        color: '#5d6a78',
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(70);
-    const t3 = this.add
-      .text(GAME_W / 2, GAME_H / 2 + 90, 'L2-3 · 过载', {
-        fontFamily: 'ui-monospace, Menlo, monospace',
-        fontSize: '13px',
-        color: '#7f8b99',
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(70);
-    [t1, t2, t3].forEach((t) => t.setAlpha(0));
-    this.tweens.add({ targets: [t1, t2, t3], alpha: 1, duration: 900 });
-    this.cameras.main.fadeIn(800, 0, 0, 0);
-    this.phase = 'DONE';
-    this.time.delayedCall(3400, () => this.advanceToLevel23());
-  }
-
-  advanceToLevel23() {
+  /**
+   * One take up the shaft: the lift rises, pre-dawn light bleeds in from
+   * above and swallows the frame — L2-3 opens inside the same light.
+   */
+  riseToLevel23() {
     if (this.advancing) return;
     this.advancing = true;
-    this.cameras.main.fadeOut(700, 0, 0, 0);
-    this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Level23'));
+    const p = this.player.p;
+    const cam = this.cameras.main;
+    synthThud(this, { freq: 55, gain: 0.3, dur: 1.6 });
+    cam.shake(1600, 0.002);
+    // Cables and shaft walls streak past, downward.
+    const streaks = this.add
+      .particles(0, 0, 'ch2-mote', {
+        x: { min: 0, max: GAME_W },
+        y: { min: -20, max: GAME_H },
+        speedY: { min: 500, max: 900 },
+        speedX: 0,
+        lifespan: { min: 300, max: 700 },
+        quantity: 2,
+        frequency: 60,
+        scale: { min: 0.3, max: 0.7 },
+        alpha: { start: 0.4, end: 0 },
+        tint: [0x3a4a5c, 0x5d6a78],
+        blendMode: Phaser.BlendModes.ADD,
+        emitting: true,
+      })
+      .setScrollFactor(0)
+      .setDepth(85);
+    // The light from the surface grows — warm grey, not cold.
+    const dawn = this.add
+      .rectangle(GAME_W / 2, 0, GAME_W, GAME_H, 0x8a94b0, 0)
+      .setOrigin(0.5, 0)
+      .setScrollFactor(0)
+      .setDepth(90)
+      .setBlendMode(Phaser.BlendModes.ADD);
+    this.tweens.add({ targets: dawn, alpha: 0.95, duration: 1500, ease: 'Quad.easeIn' });
+    cam.pan(p.x, 260, 1500, 'Quad.easeIn', true, () => {
+      streaks.destroy();
+      this.scene.start('Level23');
+    });
   }
 
   // ------------------------------------------------------------------ update
 
   update(_, deltaMs) {
-    const dt = Math.min(deltaMs, 50) / 1000;
+    const dt = (Math.min(deltaMs, 50) / 1000) * this.slow;
     const now = this.time.now;
 
     switch (this.phase) {
@@ -1097,9 +1303,6 @@ export default class Level22Scene extends Phaser.Scene {
         break;
       case 'PLAY':
         this.updatePlay(dt, now);
-        break;
-      case 'DONE':
-        if (Phaser.Input.Keyboard.JustDown(this.keys.enter)) this.advanceToLevel23();
         break;
     }
   }

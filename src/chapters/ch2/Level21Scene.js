@@ -150,6 +150,9 @@ export default class Level21Scene extends Phaser.Scene {
     this.cameras.main.setBounds(0, 0, WALK.end + 200, GAME_H);
     this.cameras.main.startFollow(this.figure, true, 0.12, 0.12);
     this.cameras.main.setFollowOffset(0, 40);
+    // From the menu: the lens dives out of the skyline onto the rooftop.
+    this.cameras.main.setZoom(1.7);
+    this.tweens.add({ targets: this.cameras.main, zoom: 1, duration: 800, ease: 'Quad.easeOut' });
 
     this.hint = this.add
       .text(GAME_W / 2, GAME_H - 22, '', {
@@ -650,17 +653,19 @@ export default class Level21Scene extends Phaser.Scene {
   // ---------------------------------------------------------------- cutscene
 
   startCutscene() {
-    this.phase = 'CS_FADE';
-    this.cameras.main.fadeOut(420, 0, 0, 0);
-    this.cameras.main.once('camerafadeoutcomplete', () => {
-      this.figure.setVisible(false);
+    this.phase = 'CS_PAN';
+    const cam = this.cameras.main;
+    cam.stopFollow();
+    cam.setBounds(0, 0, OR.roomR, GAME_H);
+    // He walks through the door ahead of the lens; the camera slides in
+    // after him. The room was always there — no black, one take.
+    this.figure.setVisible(false);
+    cam.pan(OR.tableX, 400, 850, 'Cubic.easeInOut', true, () => {
       this.lying.setVisible(true);
-      this.cameras.main.stopFollow();
-      this.cameras.main.setBounds(OR.roomL, 0, OR.roomR - OR.roomL, GAME_H);
-      this.cameras.main.centerOn(OR.tableX, 400);
-      this.cameras.main.setZoom(1.25);
-      this.cameras.main.fadeIn(420, 0, 0, 0);
-      this.csStart = this.time.now + 420;
+      cam.setBounds(OR.roomL, 0, OR.roomR - OR.roomL, GAME_H);
+      cam.centerOn(OR.tableX, 400);
+      this.tweens.add({ targets: cam, zoom: 1.25, duration: 500 });
+      this.csStart = this.time.now + 500;
       this.csBeat = 0;
       this.phase = 'CS';
       this.hint.setText('SPACE — skip');
@@ -817,7 +822,8 @@ export default class Level21Scene extends Phaser.Scene {
   }
 
   csFloorDrops() {
-    // The floor gives way; what is left of him falls into the collapse route.
+    // The floor gives way; what is left of him falls — and the camera falls
+    // with him, straight through the collapse, into the roll. One take.
     this.tweens.add({
       targets: this.lying,
       y: this.lying.y + 500,
@@ -825,15 +831,42 @@ export default class Level21Scene extends Phaser.Scene {
       duration: 900,
       ease: 'Quad.easeIn',
     });
-    this.cameras.main.fadeOut(800, 0, 0, 0);
-    this.cameras.main.once('camerafadeoutcomplete', () => this.setupRoll1());
+    this.dropToRoll1(1000);
   }
 
   skipCutscene() {
     this.csSkipped = true;
     this.tweens.killAll();
-    this.cameras.main.fadeOut(260, 0, 0, 0);
-    this.cameras.main.once('camerafadeoutcomplete', () => this.setupRoll1());
+    this.dropToRoll1(650);
+  }
+
+  /** Camera falls from the OR into the collapse route — no black. */
+  dropToRoll1(panMs) {
+    const cam = this.cameras.main;
+    cam.shake(panMs, 0.005);
+    synthThud(this, { freq: 50, gain: 0.45, dur: 1.1 });
+    // The world tears upward past the lens — we are falling.
+    const streaks = this.add
+      .particles(0, 0, 'ch2-mote', {
+        x: { min: 0, max: GAME_W },
+        y: { min: -20, max: GAME_H + 20 },
+        speedY: { min: -1400, max: -700 },
+        speedX: { min: -60, max: 60 },
+        lifespan: { min: 250, max: 600 },
+        quantity: 3,
+        frequency: 45,
+        scale: { min: 0.3, max: 0.9 },
+        alpha: { start: 0.5, end: 0 },
+        tint: [0x3a4a5c, 0x5d6a78, 0x8e1f24],
+        blendMode: Phaser.BlendModes.ADD,
+        emitting: true,
+      })
+      .setScrollFactor(0)
+      .setDepth(85);
+    cam.pan(444, 1628, panMs, 'Cubic.easeIn', true, () => {
+      streaks.destroy();
+      this.setupRoll1();
+    });
   }
 
   // ------------------------------------------------------------- roll acts
@@ -850,10 +883,10 @@ export default class Level21Scene extends Phaser.Scene {
     const cam = this.cameras.main;
     cam.stopFollow();
     cam.setBounds(camBounds.x, camBounds.y, camBounds.w, camBounds.h);
-    cam.setZoom(ROLL_TUNE.camZoomSlow);
+    // Keep whatever zoom the transition carried in; updateRoll lerps it
+    // to the speed-based target from the first frame — no snap, no fade.
     cam.startFollow(this.torso.blob, true, 0.1, 0.1);
     cam.setFollowOffset(0, 60);
-    cam.fadeIn(420, 0, 0, 0);
     this.hint.setText(hintText);
   }
 
@@ -1117,10 +1150,33 @@ export default class Level21Scene extends Phaser.Scene {
         })
         .setDepth(6)
         .explode(18);
-      // A beat in the dark, then the ruins give way to the long ramp.
+      // A beat in the dark, then the torso rolls on — the camera tears
+      // right after it, out of the shaft, into the ruins. One take.
       this.time.delayedCall(900, () => {
-        this.cameras.main.fadeOut(360, 0, 0, 0);
-        this.cameras.main.once('camerafadeoutcomplete', () => this.setupRamp());
+        const cam = this.cameras.main;
+        cam.stopFollow();
+        synthBuzz(this, { freq: 120, dur: 0.6, gain: 0.12 });
+        const streaks = this.add
+          .particles(0, 0, 'ch2-mote', {
+            x: { min: 0, max: GAME_W },
+            y: { min: 0, max: GAME_H },
+            speedX: { min: -1600, max: -900 },
+            speedY: 0,
+            lifespan: { min: 200, max: 420 },
+            quantity: 3,
+            frequency: 40,
+            scale: { min: 0.3, max: 0.8 },
+            alpha: { start: 0.5, end: 0 },
+            tint: [0x3a4a5c, 0x5d6a78],
+            blendMode: Phaser.BlendModes.ADD,
+            emitting: true,
+          })
+          .setScrollFactor(0)
+          .setDepth(85);
+        cam.pan(5794, 5228, 750, 'Cubic.easeInOut', true, () => {
+          streaks.destroy();
+          this.setupRamp();
+        });
       });
     }
 
@@ -1154,7 +1210,6 @@ export default class Level21Scene extends Phaser.Scene {
     this.enterRollPhase(field, RAMP.spawn, { x: 5350, y: 4950, w: 3800, h: 1700 },
       'A/D — roll · SPACE — hop · do not stop');
     this.torso.p.speed = 220; // carried out of the shaft
-    this.cameras.main.fadeIn(360, 0, 0, 0);
     this.endStarted = false;
   }
 
@@ -1203,7 +1258,10 @@ export default class Level21Scene extends Phaser.Scene {
     // Input is gone. The torso rolls itself the last meters to the glow.
     const p = this.torso.p;
     const stopX = RAMP.prostheticX - 70;
-    if (p.grounded) {
+    if (!p.grounded) {
+      // Crossed the trigger mid-hop: land first, then keep rolling.
+      this.torso.stepAirborne(dt, { left: false, right: false, jump: false }, this.rollField, { worldEnd: RAMP.worldEnd });
+    } else if (p.grounded) {
       const dist = stopX - p.x;
       if (dist > 4) {
         p.speed = Phaser.Math.Linear(p.speed, Math.max(40, dist * 1.6), 0.08);
@@ -1222,7 +1280,8 @@ export default class Level21Scene extends Phaser.Scene {
   }
 
   endSequence() {
-    // The cold light notices him. Beat of silence, then black.
+    // The cold light notices him — then it takes the whole frame. It never
+    // goes black: the glow IS the cut. L2-2 opens inside the same light.
     this.tweens.add({
       targets: this.prostheticGlow,
       alpha: 0.65,
@@ -1231,45 +1290,19 @@ export default class Level21Scene extends Phaser.Scene {
       ease: 'Quad.easeInOut',
     });
     synthThud(this, { freq: 50, gain: 0.25, dur: 1.4 });
-    this.time.delayedCall(2200, () => {
-      this.cameras.main.fadeOut(1400, 0, 0, 0);
-      this.cameras.main.once('camerafadeoutcomplete', () => {
-        const t1 = this.add
-          .text(GAME_W / 2, GAME_H / 2 - 40, 'L2-1 · 切除', {
-            fontFamily: 'ui-monospace, Menlo, monospace',
-            fontSize: '30px',
-            color: '#c9d6e2',
-          })
-          .setOrigin(0.5)
-          .setScrollFactor(0)
-          .setDepth(70);
-        const t2 = this.add
-          .text(GAME_W / 2, GAME_H / 2 + 8, 'COMPLETE — the limbs are gone. something else is waiting.', {
-            fontFamily: 'ui-monospace, Menlo, monospace',
-            fontSize: '13px',
-            color: '#5d6a78',
-          })
-          .setOrigin(0.5)
-          .setScrollFactor(0)
-          .setDepth(70);
-        const t3 = this.add
-          .text(GAME_W / 2, GAME_H / 2 + 90, 'L2-2 · 拼接', {
-            fontFamily: 'ui-monospace, Menlo, monospace',
-            fontSize: '13px',
-            color: '#7f8b99',
-            align: 'center',
-          })
-          .setOrigin(0.5)
-          .setScrollFactor(0)
-          .setDepth(70);
-        [t1, t2, t3].forEach((t) => t.setAlpha(0));
-        this.tweens.add({ targets: [t1, t2, t3], alpha: 1, duration: 900 });
-        // Lift the fade overlay or it hides the completion text.
-        this.cameras.main.fadeIn(800, 0, 0, 0);
-        this.phase = 'DONE';
-        // One continuous chapter: the card holds a beat, then flows
-        // straight into L2-2. ENTER skips the wait.
-        this.time.delayedCall(3400, () => this.advanceToLevel22());
+    this.time.delayedCall(1700, () => {
+      const veil = this.add
+        .rectangle(GAME_W / 2, GAME_H / 2, GAME_W, GAME_H, 0x9fd8e8, 0)
+        .setScrollFactor(0)
+        .setDepth(100)
+        .setBlendMode(Phaser.BlendModes.ADD);
+      synthBuzz(this, { freq: 200, dur: 1.4, gain: 0.1 });
+      this.tweens.add({
+        targets: veil,
+        alpha: 1,
+        duration: 1400,
+        ease: 'Quad.easeIn',
+        onComplete: () => this.scene.start('Level22'),
       });
     });
   }
@@ -1287,8 +1320,12 @@ export default class Level21Scene extends Phaser.Scene {
       playVoidDeath(this, () => {
         this.torso.reset(this.rollSpawn);
         this.deathFxStarted = false;
-        this.cameras.main.setZoom(ROLL_TUNE.camZoomSlow);
-      });
+        const cam = this.cameras.main;
+        cam.setZoom(ROLL_TUNE.camZoomSlow);
+        cam.startFollow(this.torso.blob, true, 0.1, 0.1);
+        cam.setFollowOffset(0, 60);
+        cam.flash(140, 159, 216, 232); // the body re-forms in a cold blink
+      }, { panTo: { x: this.rollSpawn.x, y: this.rollSpawn.y } });
       this.deathAt = this.time.now + 999999; // fire once
     }
   }
@@ -1372,16 +1409,6 @@ export default class Level21Scene extends Phaser.Scene {
       case 'END':
         this.updateEnd(dt);
         break;
-      case 'DONE':
-        if (Phaser.Input.Keyboard.JustDown(this.keys.enter)) this.advanceToLevel22();
-        break;
     }
-  }
-
-  advanceToLevel22() {
-    if (this.advancing) return;
-    this.advancing = true;
-    this.cameras.main.fadeOut(700, 0, 0, 0);
-    this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Level22'));
   }
 }
