@@ -1353,12 +1353,45 @@ export default class Level21Scene extends Phaser.Scene {
       synthThud(this, { freq: 110, gain: 0.2, dur: 0.2 });
     } else if (ev === 'land') {
       this.cameras.main.shake(90, 0.003);
+      // Meat meets concrete: a heavy slap of grit and blood-fleck.
+      this.add
+        .particles(p.x, p.y - 4, 'ch2-mote', {
+          speed: { min: 40, max: 160 },
+          angle: { min: 200, max: 340 },
+          lifespan: { min: 250, max: 550 },
+          quantity: 10,
+          scale: { min: 0.4, max: 1 },
+          tint: [0x4a5563, 0x5c1216],
+          emitting: false,
+        })
+        .setDepth(2)
+        .explode(10);
     } else if (ev === 'slam') {
       this.startDeath();
       return;
     }
 
     this.torso.updateFlesh(dt);
+
+    // Rolling drags meat across concrete — a grit trail behind the contact.
+    if (p.grounded && Math.abs(p.speed) > 80) {
+      this.rollDustAcc = (this.rollDustAcc || 0) + dt;
+      if (this.rollDustAcc > 0.09) {
+        this.rollDustAcc = 0;
+        this.add
+          .particles(p.x - Math.sign(p.speed) * 14, p.y - 6, 'ch2-mote', {
+            speed: { min: 30, max: 110 },
+            angle: { min: 200, max: 340 },
+            lifespan: { min: 250, max: 500 },
+            quantity: 3,
+            scale: { min: 0.3, max: 0.8 },
+            tint: [0x4a5563, 0x5c1216],
+            emitting: false,
+          })
+          .setDepth(2)
+          .explode(3);
+      }
+    }
 
     if (p.y > killY) {
       p.dead = true;

@@ -258,6 +258,15 @@ export default class Level22Scene extends Phaser.Scene {
       this.tweens.add({ targets: glow, alpha: 0.34, duration: 1100, yoyo: true, repeat: -1 });
       return img;
     });
+    // Aim cue: the ring E WOULD catch breathes before you commit, with a
+    // dotted line from the shoulder — swinging should never be a guess.
+    this.aimRing = this.add
+      .image(0, 0, 'ch2-mote')
+      .setTint(0xd8f4fc)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(4)
+      .setVisible(false);
+    this.aimGfx = this.add.graphics().setDepth(2);
   }
 
   buildShards() {
@@ -450,6 +459,7 @@ export default class Level22Scene extends Phaser.Scene {
       if (input.arm) this.startArm(now);
     }
     this.player.animate(dt);
+    this.updateAimCue(now);
 
     // Psychos.
     for (const psy of this.psychos) {
@@ -507,6 +517,60 @@ export default class Level22Scene extends Phaser.Scene {
       .setDepth(6)
       .explode(14);
     this.cameras.main.shake(70, 0.0018);
+
+    // Afterimages: rebuild the pose from the part sprites, drop fading
+    // ghosts behind the rush.
+    const parts = this.player.parts;
+    for (let i = 1; i <= 3; i++) {
+      const ghost = this.add
+        .container(p.x - p.dashDir * i * 26, p.y)
+        .setScale(p.facing, 1)
+        .setAlpha(0.42 - i * 0.1)
+        .setDepth(4);
+      for (const key of ['body', 'head', 'armL', 'armR', 'legL', 'legR']) {
+        const src = parts[key];
+        ghost.add(
+          this.add
+            .image(src.x, src.y, src.texture.key)
+            .setOrigin(src.originX, src.originY)
+            .setRotation(src.rotation)
+            .setScale(src.scaleX, src.scaleY)
+            .setTint(0x9fd8e8)
+            .setBlendMode(Phaser.BlendModes.ADD),
+        );
+      }
+      this.tweens.add({
+        targets: ghost,
+        alpha: 0,
+        duration: 240 + i * 60,
+        onComplete: () => ghost.destroy(true),
+      });
+    }
+  }
+
+  /** SPACE release at speed: the world streaks past, the lens punches. */
+  releaseFx(p) {
+    const deg = (Math.atan2(p.vy, p.vx) * 180) / Math.PI;
+    this.add
+      .particles(p.x, p.y - 36, 'ch2-mote', {
+        speed: { min: 260, max: 520 },
+        angle: { min: deg - 14, max: deg + 14 },
+        lifespan: { min: 140, max: 300 },
+        quantity: 16,
+        scale: { min: 0.5, max: 1.2 },
+        tint: [0xd8f4fc, 0x9fd8e8],
+        blendMode: Phaser.BlendModes.ADD,
+        emitting: false,
+      })
+      .setDepth(6)
+      .explode(16);
+    this.tweens.add({
+      targets: this.cameras.main,
+      zoom: 1.05,
+      duration: 90,
+      yoyo: true,
+      ease: 'Quad.easeOut',
+    });
   }
 
   // ------------------------------------------------------------------- slash
@@ -665,14 +729,15 @@ export default class Level22Scene extends Phaser.Scene {
    * reels in slowly so speed builds; SPACE releases with a kick, E drops.
    * Short-range E on a psycho still yanks it in.
    */
-  startArm(now) {
+  /**
+   * The anchor E would catch right now. Motion matters: an anchor ahead of
+   * the swing wins over the one behind, so chains flow forward (Spider-Man
+   * never re-grabs the web he just left).
+   */
+  bestAnchor() {
     const p = this.player.p;
     const sx = p.x;
     const sy = p.y - 40;
-
-    // Nearest anchor in reach — but motion matters: an anchor ahead of the
-    // swing wins over the one behind, so chains flow forward (Spider-Man
-    // never re-grabs the web he just left).
     let anchor = null;
     let anchorScore = Infinity;
     let anchorDist = 0;
@@ -688,6 +753,48 @@ export default class Level22Scene extends Phaser.Scene {
         anchorDist = d;
       }
     }
+    return anchor ? { anchor, dist: anchorDist } : null;
+  }
+
+  /** Telegraph the catch: the in-range ring breathes, a dotted line aims. */
+  updateAimCue(now) {
+    const p = this.player.p;
+    const found = !this.armState && !p.dead ? this.bestAnchor() : null;
+    if (!found) {
+      this.aimRing.setVisible(false);
+      this.aimGfx.clear();
+      return;
+    }
+    const { anchor } = found;
+    const pulse = 0.5 + 0.5 * Math.sin(now / 130);
+    this.aimRing
+      .setVisible(true)
+      .setPosition(anchor.x, anchor.y)
+      .setScale(6 + pulse * 3)
+      .setAlpha(0.22 + pulse * 0.3);
+    // Dotted trajectory from the shoulder to the ring.
+    this.aimGfx.clear();
+    this.aimGfx.lineStyle(2, 0x9fd8e8, 0.35);
+    const sx = p.x;
+    const sy = p.y - 40;
+    const dx = anchor.x - sx;
+    const dy = anchor.y - sy;
+    const len = Math.hypot(dx, dy) || 1;
+    const ux = dx / len;
+    const uy = dy / len;
+    for (let t = 26; t < len - 18; t += 22) {
+      this.aimGfx.lineBetween(sx + ux * t, sy + uy * t, sx + ux * (t + 9), sy + uy * (t + 9));
+    }
+  }
+
+  startArm(now) {
+    const p = this.player.p;
+    const sx = p.x;
+    const sy = p.y - 40;
+
+    const found = this.bestAnchor();
+    const anchor = found ? found.anchor : null;
+    const anchorDist = found ? found.dist : 0;
 
     if (anchor) {
       this.armState = {
@@ -759,6 +866,10 @@ export default class Level22Scene extends Phaser.Scene {
         p.vy *= T.swingReleaseBoost;
         if (input.jump) p.vy -= T.swingJumpKick;
         synthBuzz(this, { freq: 500, dur: 0.1, gain: 0.09 });
+        if (input.jump) {
+          const sp = Math.hypot(p.vx, p.vy);
+          if (sp > 560) this.releaseFx(p);
+        }
         this.armState = null;
         arm.setVisible(false);
         return;
