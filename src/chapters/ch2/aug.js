@@ -177,6 +177,19 @@ export function makeAugTextures(scene) {
   g.fillStyle(STEEL_HI, 1);
   g.fillRect(20, 0, 4, 5); // claw end
   g.generateTexture('ch2-extarm', 24, 5);
+  g.clear();
+
+  // Ernest's prototype emitter — salvaged from what's left of him.
+  g.fillStyle(STEEL, 1);
+  g.fillRoundedRect(0, 4, 26, 7, 2); // receiver
+  g.fillRect(20, 2, 10, 4); // barrel shroud
+  g.fillStyle(STEEL_HI, 1);
+  g.fillRect(28, 3, 3, 5); // muzzle
+  g.fillStyle(SEAM, 1);
+  g.fillRect(6, 11, 5, 7); // grip
+  g.fillStyle(0x9fd8e8, 1);
+  g.fillRect(12, 5, 8, 3); // the cell, still warm
+  g.generateTexture('ch2-lasergun', 31, 18);
   g.destroy();
 }
 

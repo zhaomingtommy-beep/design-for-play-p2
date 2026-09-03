@@ -114,8 +114,10 @@ export default class Level22Scene extends Phaser.Scene {
     this.hitstopUntil = 0;
     this.slow = 1; // kill slow-mo factor (real-time, independent of Phaser clock)
     this.ePrev = false;
-    this.ernestState = 'idle'; // idle|approach|speak|leave|done
+    this.ernestState = 'idle'; // idle|approach|wait|speak|leave|done
     this.ernestDone = this.registry.get('ch2.ernest') !== undefined;
+    this.laserDrop = null; // Ernest's emitter, if you take it off his body
+    this.laserBolts = [];
 
     this.keys = this.input.keyboard.addKeys({
       left: 'LEFT',
@@ -464,6 +466,9 @@ export default class Level22Scene extends Phaser.Scene {
     // Psychos.
     for (const psy of this.psychos) {
       if (!psy.alive) continue;
+      // Ernest's poem holds the whole corridor still — nothing moves,
+      // nothing can hit you mid-line.
+      if (this.ernestState === 'speak') continue;
       const contact = psy.step(dt, p, now);
       if (contact && !this.player.hurt && !p.dead && this.ernestState !== 'speak') {
         this.hurtPlayer(psy);
@@ -475,6 +480,9 @@ export default class Level22Scene extends Phaser.Scene {
 
     // Shard magnetism — the parasite feeds.
     this.updateShards(dt);
+
+    // Ernest's emitter: pickup and bolts.
+    this.updateLaser(dt, now);
 
     // Void death.
     if (p.y > L2.killY && !p.dead) {
@@ -573,12 +581,163 @@ export default class Level22Scene extends Phaser.Scene {
     });
   }
 
+  // ------------------------------------------------------------- laser gun
+
+  /** Ernest's emitter hits the ground where he burst. */
+  dropLaserGun(x, y) {
+    const img = this.add.image(x, y - 16, 'ch2-lasergun').setDepth(4).setRotation(-0.4);
+    const glow = this.add
+      .image(x, y - 16, 'ch2-mote')
+      .setScale(4)
+      .setTint(0x9fd8e8)
+      .setAlpha(0.3)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(3);
+    this.laserDrop = { img, glow, x, y: y - 16, vy: -160, state: 'fall' };
+  }
+
+  /** Pickup + bolt ballistics. */
+  updateLaser(dt, now) {
+    const d = this.laserDrop;
+    if (d) {
+      if (d.state === 'fall') {
+        d.vy += 1500 * dt;
+        d.y += d.vy * dt;
+        const gy = this.field.groundAt(d.x);
+        if (gy !== null && d.y >= gy - 8) {
+          d.y = gy - 8;
+          d.state = 'idle';
+          d.img.setRotation(0);
+        }
+        d.img.setPosition(d.x, d.y);
+        if (d.state === 'fall') d.img.rotation += 4 * dt;
+      } else {
+        d.img.setPosition(d.x, d.y + Math.sin(now / 350) * 2);
+        d.glow.setPosition(d.x, d.y);
+        d.glow.setAlpha(0.22 + 0.14 * Math.sin(now / 300));
+        const p = this.player.p;
+        if (!p.dead && Math.abs(p.x - d.x) < 42 && Math.abs(p.y - d.y) < 60) {
+          d.img.destroy();
+          d.glow.destroy();
+          this.laserDrop = null;
+          this.player.hasLaser = true;
+          synthBuzz(this, { freq: 760, dur: 0.2, gain: 0.14 });
+          this.hint.setText('A/D · SPACE · SHIFT · E — swing · J / LMB — ERNEST-7 (pierces)');
+          const toast = this.add
+            .text(GAME_W / 2, GAME_H - 260, "SALVAGED: prototype emitter 'ERNEST-7'", {
+              fontFamily: 'ui-monospace, Menlo, monospace',
+              fontSize: '14px',
+              color: '#9fd8e8',
+            })
+            .setOrigin(0.5)
+            .setScrollFactor(0)
+            .setDepth(70);
+          this.tweens.add({
+            targets: toast,
+            alpha: 0,
+            duration: 800,
+            delay: 2400,
+            onComplete: () => toast.destroy(),
+          });
+        }
+      }
+    }
+
+    for (let i = this.laserBolts.length - 1; i >= 0; i--) {
+      const b = this.laserBolts[i];
+      b.x += b.vx * dt;
+      b.img.setPosition(b.x, b.y);
+      let dead = now > b.dieAt || b.x < 0 || b.x > L2.worldEnd;
+      let killed = false;
+      for (const t of this.psychos) {
+        if (!t.alive || b.hit.has(t)) continue;
+        if (Math.abs(t.p.x - b.x) < 22 && Math.abs(t.p.y - 30 - b.y) < 30) {
+          b.hit.add(t);
+          const res = t.takeHit(b.x - b.vx * 0.01);
+          this.slashFeedback(t, res === 'dead');
+          if (res === 'dead') {
+            killed = true;
+            this.onPsychoDead(t);
+          }
+        }
+      }
+      if (killed) {
+        this.hitstopUntil = now + AUG_TUNE.killHitstopMs;
+        this.slow = 0.35;
+        setTimeout(() => {
+          this.slow = 1;
+        }, 150);
+        this.tweens.add({
+          targets: this.cameras.main,
+          zoom: 1.06,
+          duration: 80,
+          yoyo: true,
+          ease: 'Quad.easeOut',
+        });
+      } else if (b.hit.size > 0) {
+        this.hitstopUntil = Math.max(this.hitstopUntil, now + AUG_TUNE.hitstopMs);
+      }
+      const gy = this.field.groundAt(b.x);
+      if (gy !== null && b.y > gy - 2) dead = true;
+      if (dead) {
+        this.add
+          .particles(b.x, b.y, 'ch2-mote', {
+            speed: { min: 40, max: 160 },
+            lifespan: 200,
+            quantity: 6,
+            scale: { min: 0.3, max: 0.6 },
+            tint: [0xaefcff, 0x9fd8e8],
+            blendMode: Phaser.BlendModes.ADD,
+            emitting: false,
+          })
+          .setDepth(6)
+          .explode(6);
+        b.img.destroy();
+        this.laserBolts.splice(i, 1);
+      }
+    }
+  }
+
+  /** J / LMB with the emitter: a piercing bolt, a kick back. */
+  fireLaser(now) {
+    const p = this.player.p;
+    const fx = p.facing;
+    const mx = p.x + fx * 30;
+    const my = p.y - 34;
+    const img = this.add
+      .rectangle(mx, my, 34, 4, 0xaefcff, 0.95)
+      .setDepth(7)
+      .setBlendMode(Phaser.BlendModes.ADD);
+    this.laserBolts.push({ img, x: mx, y: my, vx: fx * 1500, dieAt: now + 500, hit: new Set() });
+    this.add
+      .particles(mx, my, 'ch2-mote', {
+        speed: { min: 60, max: 220 },
+        lifespan: 160,
+        quantity: 8,
+        scale: { min: 0.4, max: 0.9 },
+        tint: [0xaefcff, 0x9fd8e8],
+        blendMode: Phaser.BlendModes.ADD,
+        emitting: false,
+      })
+      .setDepth(7)
+      .explode(8);
+    if (p.grounded) p.vx -= fx * 60;
+    else p.vx -= fx * 120;
+    this.cameras.main.shake(50, 0.0012);
+    synthBuzz(this, { freq: 1400, dur: 0.09, gain: 0.1 });
+  }
+
   // ------------------------------------------------------------------- slash
 
   trySlash(now) {
     if (now < this.player.slashReadyAt) return;
     this.player.slashReadyAt = now + AUG_TUNE.slashCooldown;
     const p = this.player.p;
+    // The emitter replaces the blade once salvaged.
+    if (this.player.hasLaser) {
+      this.fireLaser(now);
+      return;
+    }
     const fx = p.facing;
 
     // Attack momentum: the body commits to the cut.
@@ -716,6 +875,10 @@ export default class Level22Scene extends Phaser.Scene {
       if (this.ernest.glowImg) {
         this.tweens.add({ targets: this.ernest.glowImg, alpha: 0, duration: 800 });
       }
+      // What he carried falls where he burst. The poem has a price.
+      // (Had he walked away and detonated himself, there would be nothing
+      // left to salvage.)
+      this.dropLaserGun(t.p.x, t.p.y);
     }
     if (t.glowImg) t.glowImg.setVisible(false);
   }
@@ -1213,13 +1376,35 @@ export default class Level22Scene extends Phaser.Scene {
       }
       this.ernest.facing = p.x < ep.x ? -1 : 1;
       this.ernest.animate(dt, now);
-      // He reaches him — and just stops.
+      // He reaches him — and just stops. The poem only comes if you stay.
       if (Math.abs(p.x - ep.x) < E.stopDist && ep.grounded) {
-        this.ernestState = 'speak';
+        this.ernestState = 'wait';
+        this.ernestWaitSince = 0;
         this.ernest.facing = p.x < ep.x ? -1 : 1;
         this.ernest.fig.setScale(this.ernest.facing, 1);
-        this.ernest.parts.head.setRotation(-0.3 * this.ernest.facing); // looks up
-        this.showPoem(now);
+      }
+      return;
+    }
+
+    if (this.ernestState === 'wait') {
+      // He stands dead still. Three seconds of company earns the poem.
+      this.ernest.facing = p.x < ep.x ? -1 : 1;
+      this.ernest.fig.setScale(this.ernest.facing, 1);
+      this.ernest.animate(dt, now);
+      const near = !p.dead && Math.abs(p.x - ep.x) < 140 && Math.abs(p.y - ep.y) < 70;
+      if (near) {
+        if (!this.ernestWaitSince) this.ernestWaitSince = now;
+        const u = Math.min(1, (now - this.ernestWaitSince) / 3000);
+        // His glow swells as he decides to trust you.
+        if (this.ernest.glowImg) this.ernest.glowImg.setAlpha(0.3 + u * 0.35);
+        if (u >= 1) {
+          this.ernestState = 'speak';
+          this.ernest.parts.head.setRotation(-0.3 * this.ernest.facing); // looks up
+          this.showPoem(now);
+        }
+      } else {
+        this.ernestWaitSince = 0;
+        if (this.ernest.glowImg) this.ernest.glowImg.setAlpha(0.3);
       }
       return;
     }
@@ -1279,6 +1464,9 @@ export default class Level22Scene extends Phaser.Scene {
   showPoem(now) {
     // Third-person quote box: no speaker name, no role line (design §4.4).
     // The signature at the bottom-right is the only way his name is known.
+    // Token: if the event resets (death mid-poem), the stale timers must
+    // not hijack the next Ernest's state machine.
+    const myErnest = this.ernest;
     const box = this.add.container(GAME_W / 2, GAME_H - 190).setDepth(70).setScrollFactor(0);
     this.poemBox = box;
     const bg = this.add.rectangle(0, 0, 680, 168, 0x05070c, 0.92).setStrokeStyle(1, 0x3a4a5c, 0.8);
@@ -1312,6 +1500,7 @@ export default class Level22Scene extends Phaser.Scene {
             duration: 700,
             onComplete: () => box.destroy(true),
           });
+          if (this.ernest !== myErnest) return; // stale poem, new Ernest
           if (this.ernest && this.ernest.alive) {
             this.ernest.parts.head.setRotation(0);
             this.ernest.facing = 1; // turns back the way he came
