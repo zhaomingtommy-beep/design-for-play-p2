@@ -522,22 +522,29 @@ export default class Level21Scene extends Phaser.Scene {
       .setBlendMode(Phaser.BlendModes.ADD)
       .setDepth(2);
 
-    // Lying figure on the table: same parts, rearranged horizontally.
-    this.lying = this.add.container(OR.tableX - 10, OR.tableY - 10).setDepth(5).setVisible(false);
+    // Lying figure on the table: same parts, rearranged horizontally,
+    // spread across the table so the silhouette reads at a glance.
+    this.lying = this.add.container(OR.tableX, OR.tableY - 10).setDepth(5).setVisible(false);
     this.lyingParts = {
       body: this.add.image(0, 0, 'ch2-hu-body').setRotation(Math.PI / 2),
-      head: this.add.image(-24, -2, 'ch2-hu-head'),
-      armL: this.add.image(-2, -11, 'ch2-hu-arm').setRotation(Math.PI / 2).setOrigin(0.5, 0.1),
-      armR: this.add.image(4, 9, 'ch2-hu-arm').setRotation(Math.PI / 2).setOrigin(0.5, 0.1),
-      legL: this.add.image(24, -4, 'ch2-hu-leg').setRotation(Math.PI / 2).setOrigin(0.5, 0.05),
-      legR: this.add.image(24, 5, 'ch2-hu-leg').setRotation(Math.PI / 2).setOrigin(0.5, 0.05),
+      head: this.add.image(-32, -1, 'ch2-hu-head'),
+      armL: this.add.image(-4, -12, 'ch2-hu-arm').setRotation(Math.PI / 2 + 0.18).setOrigin(0.5, 0.1),
+      armR: this.add.image(4, 10, 'ch2-hu-arm').setRotation(Math.PI / 2 - 0.14).setOrigin(0.5, 0.1),
+      legL: this.add.image(30, -4, 'ch2-hu-leg').setRotation(Math.PI / 2 + 0.08).setOrigin(0.5, 0.05),
+      legR: this.add.image(31, 6, 'ch2-hu-leg').setRotation(Math.PI / 2 - 0.06).setOrigin(0.5, 0.05),
     };
     this.lying.add(Object.values(this.lyingParts));
 
-    // Wall blood-shadow splashes, one per cut, revealed as they happen.
+    // Blood pool spreading across the table, grows with every cut.
+    this.csPool = this.add
+      .rectangle(OR.tableX, OR.tableY - 4, 0, 7, 0x5c1216, 0.85)
+      .setDepth(4);
+
+    // Blood-shadow splashes at table height — the blood belongs to the
+    // body, not the ceiling (was y=300: a streak floating mid-air).
     this.splashes = [-70, -25, 30, 75].map((dx) =>
       this.add
-        .image(OR.tableX + dx, 300, 'ch2-mote')
+        .image(OR.tableX + dx, OR.tableY - 22, 'ch2-mote')
         .setScale(9, 5)
         .setTint(0x6e1f24)
         .setAlpha(0)
@@ -687,7 +694,24 @@ export default class Level21Scene extends Phaser.Scene {
         onComplete: () => {
           synthBuzz(this, { freq: 150 + i * 25, dur: 0.7, gain: 0.18 });
           this.cameras.main.flash(160, 120, 10, 12);
-          this.lyingParts[names[i]].setVisible(false);
+          const part = this.lyingParts[names[i]];
+          part.setVisible(false);
+          // The severed limb drops off the table and stays on the floor.
+          const drop = this.add
+            .image(this.lying.x + part.x, this.lying.y + part.y, part.texture.key)
+            .setOrigin(part.originX, part.originY)
+            .setRotation(part.rotation)
+            .setDepth(6);
+          this.tweens.add({
+            targets: drop,
+            y: 588,
+            rotation: part.rotation + 2.1,
+            duration: 620,
+            ease: 'Quad.easeIn',
+            onComplete: () => this.tweens.add({ targets: drop, alpha: 0.55, duration: 1200 }),
+          });
+          // The pool spreads with every cut.
+          this.csPool.setSize(56 + i * 34, 7);
           this.splashes[i].setAlpha(0.85);
           this.tweens.add({ targets: this.splashes[i], alpha: 0.4, duration: 900 });
           this.add
@@ -908,7 +932,7 @@ export default class Level21Scene extends Phaser.Scene {
     // Falling ceiling debris: bounce + blood, never lethal (design §3.3).
     this.chunks = [];
     this.chunkTimer = this.time.addEvent({
-      delay: 750,
+      delay: 1000,
       loop: true,
       callback: () => this.spawnChunk(),
     });
@@ -950,6 +974,7 @@ export default class Level21Scene extends Phaser.Scene {
 
   spawnChunk() {
     if (this.phase !== 'ROLL1' || !this.torso || this.torso.p.dead) return;
+    if (this.chunks.length >= 5) return; // never bury the player in debris
     const cam = this.cameras.main;
     const x = cam.scrollX + Phaser.Math.Between(100, GAME_W - 60);
     const y = cam.scrollY - 30;
@@ -966,9 +991,14 @@ export default class Level21Scene extends Phaser.Scene {
       c.img.rotation += c.rot * dt;
       const gy = this.rollField.groundAt(c.img.x);
       // Hit the torso: a bonk, blood, squash — then the chunk shatters.
+      // It knocks speed OFF, never reverses it: a reversal on the slope
+      // pinned the torso in place and soft-locked the fall (bug).
       if (!p.dead && Phaser.Math.Distance.Between(c.img.x, c.img.y, p.x, p.y) < ROLL_TUNE.radius + 11) {
-        if (p.grounded) p.speed = -p.speed * 0.3;
-        else p.vx = -p.vx * 0.3;
+        if (p.grounded) p.speed *= 0.55;
+        else {
+          p.vx *= 0.6;
+          p.vy = Math.min(p.vy, -140);
+        }
         this.torso.squash(-7);
         this.cameras.main.shake(120, 0.004);
         this.bloodBurst(p.x, p.y, 20);
