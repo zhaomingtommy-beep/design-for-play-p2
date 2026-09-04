@@ -94,6 +94,23 @@ export function makeAugTextures(scene) {
   g.generateTexture('ch2-aug-leg', 6, 20);
   g.clear();
 
+  // Slash crescent: white-hot leading edge with a cold core — the blade's
+  // afterimage, not a rectangle. Centered, swept rightward (mirror with scaleX).
+  g.lineStyle(8, 0xd8f4fc, 0.95);
+  g.beginPath();
+  g.arc(40, 40, 24, -1.05, 1.05);
+  g.strokePath();
+  g.lineStyle(3.5, 0x27e0f5, 0.9);
+  g.beginPath();
+  g.arc(40, 40, 29, -0.9, 0.9);
+  g.strokePath();
+  g.lineStyle(2, 0xffffff, 0.8);
+  g.beginPath();
+  g.arc(40, 40, 19, -0.7, 0.7);
+  g.strokePath();
+  g.generateTexture('ch2-crescent', 80, 80);
+  g.clear();
+
   // Cyberpsycho: patchwork of flesh and rejects, one red eye.
   const FLESH = 0x8a736c;
   const FLESH_LO = 0x4d3c38;
@@ -212,6 +229,7 @@ export class AugPlayer {
     this.lives = AUG_TUNE.lives;
     this.invulnUntil = 0;
     this.slashReadyAt = 0;
+    this.armSwingUntil = 0; // while active, the combo owns the sword arm's pose
     this.dashReadyAt = 0;
     this.dashUntil = 0;
     this.shards = 0; // absorbed metal — the parasite's growth counter
@@ -342,25 +360,30 @@ export class AugPlayer {
     const now = this.scene.time.now;
     const moving = p.grounded && p.vx !== 0;
     this.walkPhase += Math.abs(p.vx) * dt * 0.05;
+    const armRFree = now >= this.armSwingUntil; // combo swing owns armR
+    const poseArmR = (r) => {
+      if (armRFree) this.parts.armR.setRotation(r);
+    };
     if (now < this.dashUntil) {
       // rush: body leans hard, limbs swept back
       this.parts.legL.setRotation(0.85);
       this.parts.legR.setRotation(-0.7);
       this.parts.armL.setRotation(0.7);
-      this.parts.armR.setRotation(0.9);
+      poseArmR(0.9);
     } else if (moving) {
       const sw = Math.sin(this.walkPhase) * 0.6;
       this.parts.legL.setRotation(sw);
       this.parts.legR.setRotation(-sw);
       this.parts.armL.setRotation(-sw * 0.7);
-      this.parts.armR.setRotation(sw * 0.7);
+      poseArmR(sw * 0.7);
     } else if (!p.grounded) {
       this.parts.legL.setRotation(0.35);
       this.parts.legR.setRotation(-0.25);
       this.parts.armL.setRotation(-0.4);
-      this.parts.armR.setRotation(0.5);
+      poseArmR(0.5);
     } else {
-      ['legL', 'legR', 'armL', 'armR'].forEach((k) => this.parts[k].setRotation(0));
+      ['legL', 'legR', 'armL'].forEach((k) => this.parts[k].setRotation(0));
+      poseArmR(0);
     }
     this.fig.setPosition(p.x, p.y);
     this.fig.setScale(p.facing, 1);

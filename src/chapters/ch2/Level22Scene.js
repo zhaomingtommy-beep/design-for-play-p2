@@ -757,25 +757,56 @@ export default class Level22Scene extends Phaser.Scene {
     if (p.grounded) p.x += fx * lunge;
     else p.vx += fx * [0, 130, 165, 230][stage];
 
-    // Slash flash — each stage its own silhouette.
-    const arc =
-      stage === 1
-        ? this.add.rectangle(p.x + fx * 34, p.y - 34, 52, 8, 0xd8f4fc, 0.85).setRotation(fx * 0.5)
-        : stage === 2
-          ? this.add.rectangle(p.x + fx * 38, p.y - 30, 58, 9, 0xd8f4fc, 0.9).setRotation(fx * -0.7)
-          : this.add.rectangle(p.x + fx * 40, p.y - 40, 66, 14, 0xffe8c4, 0.95).setRotation(fx * 1.35);
-    arc.setDepth(7);
+    // The sword arm swings — the combo owns its pose for a beat (aug.js).
+    const armR = this.player.parts.armR;
+    const swingMs = [0, 130, 130, 180][stage];
+    this.player.armSwingUntil = now + swingMs + 90;
+    armR.setRotation([0, -1.9, 1.7, -2.6][stage]);
+    this.tweens.add({
+      targets: armR,
+      rotation: [0, 1.5, -2.0, 2.2][stage],
+      duration: swingMs,
+      ease: 'Quad.easeIn',
+    });
+
+    // The blade's afterimage: a crescent that sweeps and dies — each stage
+    // its own arc, the finisher burning hot.
+    const cx = p.x + fx * (stage === 3 ? 42 : 36);
+    const cy = stage === 3 ? p.y - 44 : p.y - 34;
+    const baseRot = [0, fx * 0.15, fx * 2.6, fx * 1.2][stage];
+    const sc = [0, 0.85, 0.95, 1.55][stage];
+    const arc = this.add
+      .image(cx, cy, 'ch2-crescent')
+      .setDepth(7)
+      .setScale(fx * sc, sc)
+      .setRotation(baseRot)
+      .setTint(stage === 3 ? 0xffd9a0 : 0xffffff);
     this.tweens.add({
       targets: arc,
+      rotation: baseRot + fx * [0, 1.1, -1.2, 0.9][stage],
       alpha: 0,
-      scaleX: 1.6,
-      duration: stage === 3 ? 170 : 110,
+      duration: stage === 3 ? 200 : 130,
+      ease: 'Quad.easeOut',
       onComplete: () => arc.destroy(),
     });
     synthBuzz(this, { freq: [0, 900, 1150, 640][stage], dur: stage === 3 ? 0.14 : 0.08, gain: 0.07 });
     if (stage === 3) {
-      // The finisher lands heavy: dust ring, a beat of shake.
-      this.cameras.main.shake(70, 0.003);
+      // The finisher lands heavy: shockwave ring, dust, a beat of shake.
+      const ring = this.add
+        .ellipse(cx, cy, 170, 100, 0x9fd8e8, 0)
+        .setStrokeStyle(3, 0x9fd8e8, 0.85)
+        .setScale(0.12)
+        .setDepth(7);
+      this.tweens.add({
+        targets: ring,
+        scaleX: 1,
+        scaleY: 1,
+        alpha: 0,
+        duration: 260,
+        ease: 'Quad.easeOut',
+        onComplete: () => ring.destroy(),
+      });
+      this.cameras.main.shake(110, 0.005);
       this.dustPuff(p.x + fx * 30, p.y);
     }
 
@@ -791,7 +822,15 @@ export default class Level22Scene extends Phaser.Scene {
       const dy = Math.abs((t.p.y - 30) - (p.y - 34));
       if (dx > 0 && dx < reach && dy < arcHalf) {
         let res = t.takeHit(p.x);
-        if (res !== 'dead' && stage === 3) res = t.takeHit(p.x); // finisher bites twice
+        if (res !== 'dead' && stage === 3) {
+          res = t.takeHit(p.x); // finisher bites twice
+          if (res !== 'dead') {
+            // …and launches what survives it.
+            t.p.vy = -330;
+            t.p.vx *= 1.6;
+            t.p.grounded = false;
+          }
+        }
         anyHit = true;
         this.slashFeedback(t, res === 'dead');
         if (res === 'dead') {
@@ -799,6 +838,26 @@ export default class Level22Scene extends Phaser.Scene {
           this.onPsychoDead(t);
         }
       }
+    }
+    // Chain counter — the only UI flourish the kill floor gets.
+    if (anyHit && stage > 1) {
+      const pop = this.add
+        .text(p.x + fx * 44, p.y - 74, `x${stage}`, {
+          fontFamily: 'ui-monospace, Menlo, monospace',
+          fontSize: '15px',
+          fontStyle: 'bold',
+          color: stage === 3 ? '#ffd9a0' : '#9fd8e8',
+        })
+        .setOrigin(0.5)
+        .setDepth(8);
+      this.tweens.add({
+        targets: pop,
+        y: pop.y - 30,
+        alpha: 0,
+        duration: 520,
+        ease: 'Quad.easeOut',
+        onComplete: () => pop.destroy(),
+      });
     }
     if (anyKill) {
       this.hitstopUntil = now + AUG_TUNE.killHitstopMs;
@@ -816,7 +875,7 @@ export default class Level22Scene extends Phaser.Scene {
         ease: 'Quad.easeOut',
       });
     } else if (anyHit) {
-      this.hitstopUntil = now + (stage === 3 ? AUG_TUNE.hitstopMs * 1.6 : AUG_TUNE.hitstopMs);
+      this.hitstopUntil = now + (stage === 3 ? AUG_TUNE.hitstopMs * 1.8 : stage === 2 ? AUG_TUNE.hitstopMs * 1.3 : AUG_TUNE.hitstopMs);
     }
   }
 
