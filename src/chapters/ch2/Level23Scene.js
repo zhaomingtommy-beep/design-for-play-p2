@@ -1,83 +1,313 @@
 import Phaser from 'phaser';
 import { GAME_W, GAME_H } from '../../constants.js';
-import { makeTorsoTextures } from './torso.js';
+import {
+  makeTorsoTextures,
+  Heightfield,
+  playVoidDeath,
+  synthThud,
+  synthBuzz,
+} from './torso.js';
+import { makeAugTextures, Psycho } from './aug.js';
 
 /**
- * L2-3 「过载」 — stub. The ascent elevator from L2-2 arrives here; holds
- * the pre-dawn surface beat until the full level is built.
+ * L2-3 「过载」 — the aggregate. The parasite has swallowed every shard in
+ * the underground; what climbs out of the ascent elevator is a human silhouette
+ * buried inside a crawling shell of scrap (design §5).
+ *
+ * The third body of the chapter, and the heaviest:
+ *   - walks slow, jumps low, no arm, no dash — just mass
+ *   - landing hard detonates a shockwave that shatters psychos
+ *   - ordinary platforms CRUMBLE under it after 0.8s — weight is the hazard
+ *   - finale: a pit no jump can cross. Mid-air, F detonates the shell and
+ *     the explosion throws the naked torso across. Miss the window and the
+ *     void takes you — same gore, same whip-back, same cold comment.
+ *
+ * One take, as always: no black cuts, the camera never stops rolling.
  */
+
+const L3 = {
+  ground: 470,
+  killY: 780,
+  spawn: { x: 140 },
+  worldEnd: 3700,
+  // Two bridged gaps (crumble platforms are the only way across) + the pit.
+  gaps: [
+    { from: 950, to: 1250 },
+    { from: 2550, to: 2850 },
+    { from: 2880, to: 3350 },
+  ],
+  platforms: [
+    { x: 1025, y: 470, w: 130 },
+    { x: 1175, y: 470, w: 130 },
+    { x: 2625, y: 470, w: 130 },
+    { x: 2775, y: 470, w: 130 },
+  ],
+  crumbleMs: 800,
+  pit: { x0: 2880, x1: 3350 },
+  detonateMinX: 2680, // F only arms near the pit
+  hintX: 2560,
+  goalX: 3540, // where the thrown torso lands
+  gateX: 3650, // the cold door — Chapter 3
+  psychoX: [700, 1900, 2120, 2480],
+};
+
+const AGG = {
+  walkSpeed: 150, // it wades, it does not run
+  airAccel: 700,
+  airMax: 200,
+  gravity: 1900,
+  jumpVelocity: -560, // ~82px of lift — small hops only
+  stepSnap: 18,
+  shockMinVy: 380, // landing faster than this = shockwave
+  shockRadius: 160,
+  detonateWindowMs: 1200,
+  lives: 3,
+  invulnMs: 1200,
+};
+
+const SUBTITLE =
+  'THE UPGRADE is complete. The body was the last thing that was still yours.';
+const MISS_COMMENT = 'Detonation window: missed. Retrying is free.';
+
+// ------------------------------------------------------------- local textures
+
+function makeLocalTextures(scene) {
+  if (!scene.textures.exists('ch2-hu-body')) {
+    // Naked human torso (normally minted by L2-1; guard for isolated starts).
+    const g = scene.make.graphics({ add: false });
+    const BODY = 0x232b36;
+    const RIM = 0x7fd4e8;
+    g.fillStyle(BODY, 1);
+    g.fillRoundedRect(0, 0, 14, 26, 4);
+    g.lineStyle(1, RIM, 0.5);
+    g.lineBetween(1, 3, 1, 23);
+    g.generateTexture('ch2-hu-body', 14, 26);
+    g.clear();
+    g.fillStyle(BODY, 1);
+    g.fillCircle(6, 6, 6);
+    g.fillStyle(0x9fd8e8, 0.9);
+    g.fillCircle(8, 5, 1.4);
+    g.generateTexture('ch2-hu-head', 12, 12);
+    g.destroy();
+  }
+  if (!scene.textures.exists('ch2-plat')) {
+    // Crumble platform: poured concrete slab, rebar ends, warning chevron.
+    const g = scene.make.graphics({ add: false });
+    g.fillStyle(0x232a34, 1);
+    g.fillRect(0, 0, 130, 14);
+    g.fillStyle(0x39424e, 1);
+    g.fillRect(0, 0, 130, 3);
+    g.lineStyle(1, 0x5d6a78, 0.7);
+    g.lineBetween(0, 1, 130, 1);
+    g.lineStyle(1, 0x14181f, 0.9);
+    for (let x = 12; x < 130; x += 24) g.lineBetween(x, 4, x + 8, 12);
+    g.fillStyle(0xff8a3c, 0.55);
+    g.fillTriangle(8, 5, 14, 5, 11, 10);
+    g.fillTriangle(116, 5, 122, 5, 119, 10);
+    g.generateTexture('ch2-plat', 130, 14);
+    g.destroy();
+  }
+}
+
+// ----------------------------------------------------------- aggregate player
+
+class AggregatePlayer {
+  /** A human shape drowning in scrap. Feet-origin, like AugPlayer. */
+  constructor(scene, spawn) {
+    this.scene = scene;
+    this.p = { x: spawn.x, y: spawn.y, vx: 0, vy: 0, grounded: true, facing: 1, dead: false };
+    this.lives = AGG.lives;
+    this.invulnUntil = 0;
+
+    this.fig = scene.add.container(this.p.x, this.p.y).setDepth(5);
+    this.body = scene.add.image(0, -50, 'ch2-aug-body').setScale(2.2);
+    this.head = scene.add.image(3, -92, 'ch2-aug-head').setScale(1.8);
+
+    // The crawling shell: shards in a slow orbit, each with its own jitter.
+    this.shellRing = scene.add.container(0, -52);
+    this.shell = [];
+    for (let i = 0; i < 14; i++) {
+      const ang = (i / 14) * Math.PI * 2;
+      const rad = 40 + (i % 3) * 8;
+      const img = scene.add
+        .image(Math.cos(ang) * rad, Math.sin(ang) * rad * 1.15, 'ch2-shard')
+        .setScale(1.7)
+        .setRotation(ang * 2.3)
+        .setVisible(false);
+      this.shellRing.add(img);
+      this.shell.push({ img, ang, rad, wob: Math.random() * 6 });
+    }
+    this.fig.add([this.body, this.head, this.shellRing]);
+
+    this.coreGlow = scene.add
+      .image(this.p.x, this.p.y - 50, 'ch2-mote')
+      .setScale(9)
+      .setTint(0x9fd8e8)
+      .setAlpha(0.22)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(4);
+
+    this.wobble = 0;
+    this.wobbleV = 0;
+    this.revealed = 0; // FORM phase reveals the shell piece by piece
+  }
+
+  get hurt() {
+    return this.scene.time.now < this.invulnUntil;
+  }
+
+  /** Attach the next shell shard (FORM fly-in). */
+  revealNext() {
+    if (this.revealed >= this.shell.length) return;
+    this.shell[this.revealed].img.setVisible(true);
+    this.revealed++;
+    this.squash(0.5);
+  }
+
+  squash(amount) {
+    this.wobbleV += amount * 0.06;
+  }
+
+  setVisible(v) {
+    this.fig.setVisible(v);
+    this.coreGlow.setVisible(v);
+  }
+
+  /**
+   * Platformer step on the scene's ground function (field + standing
+   * platforms). Returns { land: impactVy } on touchdown, null otherwise.
+   */
+  step(dt, input, groundYAt, { worldEnd = Infinity } = {}) {
+    const p = this.p;
+    if (p.grounded) {
+      let dir = 0;
+      if (input.left && !input.right) dir = -1;
+      else if (input.right && !input.left) dir = 1;
+      p.vx = dir * AGG.walkSpeed;
+      if (dir !== 0) p.facing = dir;
+
+      if (input.jump) {
+        p.grounded = false;
+        p.vy = AGG.jumpVelocity;
+        p.y -= 2;
+        this.squash(3);
+        return null;
+      }
+
+      const nx = p.x + p.vx * dt;
+      const gy = groundYAt(nx);
+      const gyCur = groundYAt(p.x);
+      if (gy === null) {
+        p.grounded = false; // walked off the edge — or the slab gave way
+        p.vy = 0;
+        p.x = nx;
+        return null;
+      }
+      if (gyCur !== null && gy < gyCur - AGG.stepSnap && dir !== 0) return null;
+      p.x = Math.min(nx, worldEnd);
+      p.y = gy;
+      return null;
+    }
+
+    p.vy += AGG.gravity * dt;
+    if (input.left && !input.right) {
+      p.vx = Math.max(p.vx - AGG.airAccel * dt, -AGG.airMax);
+      p.facing = -1;
+    } else if (input.right && !input.left) {
+      p.vx = Math.min(p.vx + AGG.airAccel * dt, AGG.airMax);
+      p.facing = 1;
+    }
+    p.x = Math.min(p.x + p.vx * dt, worldEnd);
+    p.y += p.vy * dt;
+
+    const gy = groundYAt(p.x);
+    if (gy !== null && p.y >= gy && p.vy > 0) {
+      p.y = gy;
+      const impact = p.vy;
+      p.vy = 0;
+      p.grounded = true;
+      p.vx = 0;
+      this.squash(-Phaser.Math.Clamp(impact / 300, 1.5, 6));
+      return { land: impact };
+    }
+    return null;
+  }
+
+  /** Shell crawl + breathing wobble. Pure visuals. */
+  animate(dt) {
+    const p = this.p;
+    const now = this.scene.time.now;
+    this.wobbleV += (-this.wobble * 120 - this.wobbleV * 9) * dt;
+    this.wobble += this.wobbleV * dt;
+    this.fig.setScale(p.facing * (1 + this.wobble), 1 - this.wobble * 0.8);
+    this.fig.setPosition(p.x, p.y);
+
+    this.shellRing.setRotation(now * 0.00035);
+    for (const s of this.shell) {
+      if (!s.img.visible) continue;
+      const a = s.ang + Math.sin(now * 0.0011 + s.wob) * 0.14;
+      const r = s.rad + Math.sin(now * 0.0017 + s.wob * 2) * 3;
+      s.img.setPosition(Math.cos(a) * r, Math.sin(a) * r * 1.15);
+      s.img.setRotation(a * 2.3 + now * 0.0006);
+    }
+    this.coreGlow.setPosition(p.x, p.y - 50);
+    this.fig.setAlpha(this.hurt && Math.floor(now / 90) % 2 === 0 ? 0.35 : 1);
+  }
+}
+
+// ------------------------------------------------------------------- the scene
+
 export default class Level23Scene extends Phaser.Scene {
   constructor() {
     super('Level23');
   }
 
   create() {
+    this.phase = 'FORM'; // FORM | PLAY | DETONATE | FLIGHT | END
     makeTorsoTextures(this);
+    makeAugTextures(this);
+    makeLocalTextures(this);
 
-    // Pre-dawn surface: lead grey, cold blue, one warm light far away (§7).
-    const sky = this.add.graphics().setDepth(0);
-    for (let i = 0; i < 40; i++) {
-      const t = i / 40;
-      sky.fillStyle(Phaser.Display.Color.GetColor(14 + 14 * t, 16 + 14 * t, 24 + 16 * t), 1);
-      sky.fillRect(0, (GAME_H / 40) * i, GAME_W, GAME_H / 40 + 1);
-    }
-    // Ruined skyline silhouettes.
-    const far = this.add.graphics().setDepth(1);
-    let x = -30;
-    let seed = 41;
-    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-    while (x < GAME_W + 60) {
-      const w = 60 + rnd() * 100;
-      const h = 90 + rnd() * 180;
-      far.fillStyle(0x11151d, 1);
-      far.fillRect(x, 470 - h, w, h);
-      // broken tops
-      if (rnd() < 0.6) far.fillTriangle(x + w * 0.3, 470 - h, x + w * 0.7, 470 - h, x + w * 0.5, 470 - h - 20 - rnd() * 20);
-      x += w + 10 + rnd() * 40;
-    }
-    // Ground.
-    const g = this.add.graphics().setDepth(2);
-    g.fillStyle(0x14181f, 1);
-    g.fillRect(0, 470, GAME_W, GAME_H - 470);
-    const rim = this.add.graphics().setDepth(3);
-    rim.lineStyle(2, 0x3a4a5c, 1);
-    rim.lineBetween(0, 470, GAME_W, 470);
+    // Flat pre-dawn ground with one low ledge (jump still exists — barely).
+    const contour = [
+      { x: 0, y: L3.ground },
+      { x: 2160, y: L3.ground },
+      { x: 2180, y: L3.ground - 40 },
+      { x: 2340, y: L3.ground - 40 },
+      { x: 2360, y: L3.ground },
+      { x: L3.worldEnd + 60, y: L3.ground },
+    ];
+    this.field = new Heightfield(contour, L3.gaps);
 
-    // The warm door far away — the only warm light in the level (§7).
-    const door = this.add
-      .image(GAME_W - 120, 430, 'ch2-mote')
-      .setScale(10, 14)
-      .setTint(0xffb46b)
-      .setAlpha(0.2)
-      .setBlendMode(Phaser.BlendModes.ADD)
-      .setDepth(2);
-    this.tweens.add({ targets: door, alpha: 0.36, duration: 1900, yoyo: true, repeat: -1 });
+    this.buildBackdrop();
+    this.field.draw(this, { maxX: L3.worldEnd + 50, bottom: 820, fill: 0x14181f, rimColor: 0x3a4a5c });
+    this.buildPlatforms();
+    this.buildGate();
+    this.buildPitSign();
 
-    this.add
-      .text(GAME_W / 2, 150, 'L2-3 · 过载', {
-        fontFamily: 'ui-monospace, Menlo, monospace',
-        fontSize: '30px',
-        color: '#c9d6e2',
-      })
-      .setOrigin(0.5)
-      .setDepth(5);
-    this.add
-      .text(GAME_W / 2, 200, 'the metal remembers everything it touched.', {
-        fontFamily: 'ui-monospace, Menlo, monospace',
-        fontSize: '13px',
-        color: '#5d6a78',
-      })
-      .setOrigin(0.5)
-      .setDepth(5);
-    this.add
-      .text(GAME_W / 2, GAME_H - 60, '— in development —\nENTER — menu', {
-        fontFamily: 'ui-monospace, Menlo, monospace',
-        fontSize: '12px',
-        color: '#4a545f',
-        align: 'center',
-      })
-      .setOrigin(0.5)
-      .setDepth(5);
+    this.player = new AggregatePlayer(this, { x: L3.spawn.x, y: this.field.groundAt(L3.spawn.x) });
+    this.psychos = [];
+    this.spawnPsychos();
+
+    this.slow = 1;
+    this.groundedAt = 0;
+    this.fPrev = false;
+
+    this.keys = this.input.keyboard.addKeys({
+      left: 'LEFT',
+      right: 'RIGHT',
+      a: 'A',
+      d: 'D',
+      jump: 'SPACE',
+      f: 'F',
+      enter: 'ENTER',
+    });
+    this.input.keyboard.addCapture(['SPACE', 'LEFT', 'RIGHT']);
+
+    this.cameras.main.setBounds(0, 0, L3.worldEnd + 200, 820);
+    this.cameras.main.centerOn(320, 380);
+
+    this.buildHud();
 
     // One take from L2-2: the ascent's dawn light recedes from the frame.
     const veil = this.add
@@ -91,29 +321,694 @@ export default class Level23Scene extends Phaser.Scene {
     const shards = this.registry.get('ch2.shards');
     if (shards !== undefined) {
       const toast = this.add
-        .text(GAME_W / 2, 240, `${shards} shards. it is still hungry.`, {
+        .text(GAME_W / 2, 130, `${shards} shards. it is still hungry.`, {
           fontFamily: 'ui-monospace, Menlo, monospace',
           fontSize: '12px',
           color: '#5d6a78',
         })
         .setOrigin(0.5)
-        .setDepth(5)
+        .setScrollFactor(0)
+        .setDepth(60)
         .setAlpha(0);
       this.tweens.add({
         targets: toast,
         alpha: 0.9,
         duration: 900,
-        delay: 1200,
-        onComplete: () => this.tweens.add({ targets: toast, alpha: 0, duration: 1200, delay: 2600 }),
+        delay: 700,
+        onComplete: () => this.tweens.add({ targets: toast, alpha: 0, duration: 1200, delay: 2400 }),
       });
     }
 
-    this.keys = this.input.keyboard.addKeys({ enter: 'ENTER' });
+    this.beginForm();
   }
 
-  update() {
-    if (Phaser.Input.Keyboard.JustDown(this.keys.enter)) {
-      this.scene.start('Menu');
+  // ---------------------------------------------------------------- backdrop
+
+  buildBackdrop() {
+    // Pre-dawn surface: lead grey, cold blue (§7). Static in screen space.
+    const sky = this.add.graphics().setDepth(0).setScrollFactor(0);
+    for (let i = 0; i < 40; i++) {
+      const t = i / 40;
+      sky.fillStyle(Phaser.Display.Color.GetColor(14 + 14 * t, 16 + 14 * t, 24 + 16 * t), 1);
+      sky.fillRect(0, (GAME_H / 40) * i, GAME_W, GAME_H / 40 + 1);
     }
+    // A thin warm band on the horizon — the sun is coming, too late.
+    sky.fillStyle(0x4a3a30, 0.5);
+    sky.fillRect(0, 430, GAME_W, 40);
+
+    // Ruined skyline, two parallax depths, wide enough for the whole world.
+    let seed = 41;
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const far = this.add.graphics().setDepth(1).setScrollFactor(0.2, 1);
+    let x = -30;
+    const farW = L3.worldEnd * 0.2 + GAME_W + 120;
+    while (x < farW) {
+      const w = 60 + rnd() * 100;
+      const h = 90 + rnd() * 180;
+      far.fillStyle(0x11151d, 1);
+      far.fillRect(x, 470 - h, w, h);
+      if (rnd() < 0.6)
+        far.fillTriangle(x + w * 0.3, 470 - h, x + w * 0.7, 470 - h, x + w * 0.5, 470 - h - 20 - rnd() * 20);
+      x += w + 10 + rnd() * 40;
+    }
+    const mid = this.add.graphics().setDepth(1).setScrollFactor(0.45, 1);
+    x = -60;
+    const midW = L3.worldEnd * 0.45 + GAME_W + 120;
+    while (x < midW) {
+      const w = 40 + rnd() * 70;
+      const h = 40 + rnd() * 90;
+      mid.fillStyle(0x0d1017, 1);
+      mid.fillRect(x, 470 - h, w, h);
+      x += w + 30 + rnd() * 90;
+    }
+
+    // Morning haze: huge soft motes drifting, almost still.
+    for (let i = 0; i < 5; i++) {
+      const m = this.add
+        .image(200 + i * 720, 330 + (i % 2) * 90, 'ch2-mote')
+        .setScale(60, 18)
+        .setTint(0x8a94b0)
+        .setAlpha(0.045)
+        .setBlendMode(Phaser.BlendModes.ADD)
+        .setDepth(3);
+      this.tweens.add({ targets: m, x: m.x + 120, duration: 14000 + i * 3000, yoyo: true, repeat: -1 });
+    }
+  }
+
+  buildPlatforms() {
+    for (const pl of L3.platforms) {
+      pl.state = 'idle'; // idle | shaking | fallen
+      pl.shookAt = 0;
+      pl.img = this.add.image(pl.x, pl.y + 7, 'ch2-plat').setDepth(4);
+    }
+  }
+
+  buildGate() {
+    // The cold door at the end of the world — Chapter 3 behind it.
+    const frame = this.add.graphics().setDepth(3);
+    frame.lineStyle(3, 0x9fd8e8, 0.9);
+    frame.strokeRect(L3.gateX, L3.ground - 150, 90, 150);
+    const spill = this.add
+      .image(L3.gateX + 45, L3.ground - 70, 'ch2-mote')
+      .setScale(16, 22)
+      .setTint(0x9fd8e8)
+      .setAlpha(0.14)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(2);
+    this.tweens.add({ targets: spill, alpha: 0.3, duration: 2100, yoyo: true, repeat: -1 });
+    this.gateSpill = spill;
+  }
+
+  buildPitSign() {
+    // The only instruction the level ever gives. Cold, floating, patient.
+    const sign = this.add
+      .text(L3.hintX, 360, 'DETONATE: press F in mid-air', {
+        fontFamily: 'ui-monospace, Menlo, monospace',
+        fontSize: '14px',
+        color: '#9fd8e8',
+      })
+      .setOrigin(0.5)
+      .setDepth(3)
+      .setAlpha(0.75);
+    this.tweens.add({ targets: sign, alpha: 0.35, duration: 1400, yoyo: true, repeat: -1 });
+  }
+
+  buildHud() {
+    this.hint = this.add
+      .text(GAME_W / 2, GAME_H - 22, '', {
+        fontFamily: 'ui-monospace, Menlo, monospace',
+        fontSize: '12px',
+        color: '#5d6a78',
+      })
+      .setOrigin(0.5, 1)
+      .setScrollFactor(0)
+      .setDepth(60);
+    this.lifeImgs = [];
+    for (let i = 0; i < AGG.lives; i++) {
+      this.lifeImgs.push(
+        this.add
+          .image(GAME_W - 20 - i * 22, 20, 'ch2-aug-body')
+          .setScale(0.65)
+          .setScrollFactor(0)
+          .setDepth(60),
+      );
+    }
+  }
+
+  refreshLivesHud() {
+    this.lifeImgs.forEach((img, i) => img.setAlpha(i < this.player.lives ? 1 : 0.15));
+  }
+
+  // --------------------------------------------------------------- FORM phase
+
+  /** The last absorption, on camera: the scrap of the underground flies in
+   *  and closes over the silhouette. No input until the shell is shut. */
+  beginForm() {
+    // First four shards are already on it when it climbs out of the elevator.
+    for (let i = 0; i < 4; i++) this.player.revealNext();
+    this.figScale = 0.62;
+    this.player.fig.setScale(this.figScale, this.figScale);
+
+    const px = this.player.p.x;
+    const py = this.player.p.y - 52;
+    const total = this.player.shell.length;
+    for (let i = 4; i < total; i++) {
+      this.time.delayedCall(500 + (i - 4) * 110, () => {
+        const fromLeft = i % 2 === 0;
+        const fly = this.add
+          .image(px + (fromLeft ? -560 : 560), 120 + Math.random() * 300, 'ch2-shard')
+          .setScale(1.7)
+          .setRotation(Math.random() * 6)
+          .setDepth(6);
+        synthBuzz(this, { freq: 300 + i * 18, dur: 0.08, gain: 0.06 });
+        this.tweens.add({
+          targets: fly,
+          x: px,
+          y: py,
+          duration: 420,
+          ease: 'Quad.easeIn',
+          onComplete: () => {
+            fly.destroy();
+            this.player.revealNext();
+            this.figScale = Math.min(1, this.figScale + 0.038);
+            synthThud(this, { freq: 130 + i * 8, gain: 0.1, dur: 0.16 });
+          },
+        });
+      });
+    }
+
+    this.time.delayedCall(500 + (total - 4) * 110 + 500, () => {
+      // The shell closes. The ground notices.
+      this.figScale = 1;
+      this.cameras.main.shake(220, 0.008);
+      this.cameras.main.flash(160, 159, 216, 232);
+      synthThud(this, { freq: 70, gain: 0.5, dur: 0.5 });
+      this.add
+        .particles(px, py + 40, 'ch2-mote', {
+          speed: { min: 60, max: 240 },
+          lifespan: { min: 300, max: 700 },
+          quantity: 26,
+          scale: { min: 0.4, max: 1.2 },
+          tint: [0x5d6a78, 0x9fd8e8],
+          blendMode: Phaser.BlendModes.ADD,
+          emitting: false,
+        })
+        .setDepth(6)
+        .explode(26);
+      this.phase = 'PLAY';
+      this.cameras.main.startFollow(this.player.fig, true, 0.1, 0.1);
+      this.cameras.main.setFollowOffset(0, 60);
+      this.hint.setText('A/D · ←/→ move — SPACE jump — the world cannot hold you');
+    });
+  }
+
+  // ------------------------------------------------------------------ ground
+
+  /** Field ground plus standing platforms; null = void. */
+  groundYAt(x) {
+    let y = this.field.groundAt(x);
+    if (y === null) y = Infinity;
+    for (const pl of L3.platforms) {
+      if (pl.state === 'fallen') continue;
+      if (x >= pl.x - pl.w / 2 && x <= pl.x + pl.w / 2) y = Math.min(y, pl.y);
+    }
+    return y === Infinity ? null : y;
+  }
+
+  platformUnder(p) {
+    if (!p.grounded) return null;
+    for (const pl of L3.platforms) {
+      if (pl.state === 'fallen') continue;
+      if (Math.abs(p.y - pl.y) < 3 && p.x >= pl.x - pl.w / 2 && p.x <= pl.x + pl.w / 2) return pl;
+    }
+    return null;
+  }
+
+  updatePlatforms(now) {
+    const standing = this.phase === 'PLAY' ? this.platformUnder(this.player.p) : null;
+    for (const pl of L3.platforms) {
+      if (pl.state === 'idle' && pl === standing) {
+        pl.state = 'shaking';
+        pl.shookAt = now;
+        pl.img.setTint(0xff8a5d);
+        synthBuzz(this, { freq: 90, dur: 0.3, gain: 0.1 });
+      }
+      if (pl.state === 'shaking') {
+        pl.img.setPosition(pl.x + Phaser.Math.Between(-2, 2), pl.y + 7 + Phaser.Math.Between(-1, 2));
+        if (now - pl.shookAt > L3.crumbleMs) {
+          pl.state = 'fallen';
+          pl.img.clearTint();
+          synthThud(this, { freq: 85, gain: 0.3, dur: 0.4 });
+          this.tweens.add({ targets: pl.img, y: pl.y + 340, alpha: 0, duration: 900, ease: 'Quad.easeIn' });
+          this.add
+            .particles(pl.x, pl.y, 'ch2-mote', {
+              speed: { min: 40, max: 160 },
+              lifespan: { min: 300, max: 700 },
+              quantity: 18,
+              scale: { min: 0.4, max: 1 },
+              tint: [0x39424e, 0x5d6a78],
+              blendMode: Phaser.BlendModes.ADD,
+              emitting: false,
+            })
+            .setDepth(6)
+            .explode(18);
+        }
+      }
+    }
+  }
+
+  restorePlatforms() {
+    for (const pl of L3.platforms) {
+      this.tweens.killTweensOf(pl.img);
+      pl.state = 'idle';
+      pl.img.clearTint();
+      pl.img.setPosition(pl.x, pl.y + 7);
+      pl.img.setAlpha(1);
+    }
+  }
+
+  // ------------------------------------------------------------------ psychos
+
+  spawnPsychos() {
+    for (const x of L3.psychoX) this.psychos.push(new Psycho(this, x, this.field));
+  }
+
+  /** Shockwave kill: the aggregate lands and the ground itself hits back. */
+  shockwave(x, y, impact) {
+    const power = Phaser.Math.Clamp(impact / 900, 0.6, 1.3);
+    const ring = this.add.graphics().setDepth(7);
+    ring.lineStyle(3, 0x9fd8e8, 0.9);
+    ring.strokeCircle(x, y - 6, 16);
+    this.tweens.add({
+      targets: ring,
+      alpha: 0,
+      scaleX: AGG.shockRadius / 9,
+      scaleY: AGG.shockRadius / 22,
+      duration: 380,
+      ease: 'Quad.easeOut',
+      onComplete: () => ring.destroy(),
+    });
+    this.cameras.main.shake(180, 0.009 * power);
+    synthThud(this, { freq: 55, gain: 0.5, dur: 0.5 });
+    // A beat of slow-mo so the shatter reads.
+    this.slow = 0.3;
+    this.time.delayedCall(130, () => {
+      if (this.phase === 'PLAY') this.slow = 1;
+    });
+    for (const psy of this.psychos) {
+      if (!psy.alive) continue;
+      const d = Math.hypot(psy.p.x - x, psy.p.y - y);
+      if (d > AGG.shockRadius) continue;
+      psy.hp = 1;
+      psy.takeHit(x);
+      this.onPsychoDead(psy);
+    }
+  }
+
+  onPsychoDead(t) {
+    this.add
+      .particles(t.p.x, t.p.y - 30, 'ch2-gib', {
+        speed: { min: 120, max: 460 },
+        angle: { min: 200, max: 340 },
+        gravityY: 1500,
+        lifespan: 1400,
+        quantity: 14,
+        rotate: { min: -400, max: 400 },
+        emitting: false,
+      })
+      .setDepth(6)
+      .explode(14);
+    this.add
+      .particles(t.p.x, t.p.y - 30, 'ch2-mote', {
+        speed: { min: 100, max: 420 },
+        lifespan: { min: 300, max: 800 },
+        quantity: 30,
+        scale: { min: 0.4, max: 1.5 },
+        tint: [0x8e1f24, 0x5c1216, 0xffc46b],
+        blendMode: Phaser.BlendModes.ADD,
+        emitting: false,
+      })
+      .setDepth(6)
+      .explode(30);
+    synthThud(this, { freq: 80, gain: 0.35, dur: 0.35 });
+    const dir = Math.sign(t.p.x - this.player.p.x) || 1;
+    this.tweens.add({
+      targets: t.fig,
+      x: t.p.x + dir * 190,
+      y: t.p.y - 110,
+      rotation: dir * 2.8,
+      alpha: 0,
+      duration: 340,
+      ease: 'Quad.easeOut',
+      onComplete: () => t.fig.setVisible(false),
+    });
+    if (t.glowImg) t.glowImg.setVisible(false);
+  }
+
+  // ------------------------------------------------------------ hurt & death
+
+  hurtPlayer(psy) {
+    const p = this.player.p;
+    this.player.lives--;
+    this.refreshLivesHud();
+    this.player.invulnUntil = this.time.now + AGG.invulnMs;
+    p.vx = (p.x < psy.p.x ? -1 : 1) * 260;
+    p.vy = -220;
+    p.grounded = false;
+    this.cameras.main.flash(150, 140, 20, 26);
+    synthBuzz(this, { freq: 200, dur: 0.3, gain: 0.16 });
+    this.add
+      .particles(p.x, p.y - 50, 'ch2-mote', {
+        speed: { min: 80, max: 280 },
+        lifespan: { min: 300, max: 600 },
+        quantity: 16,
+        scale: { min: 0.4, max: 1 },
+        tint: [0x8e1f24, 0xb03036],
+        blendMode: Phaser.BlendModes.ADD,
+        emitting: false,
+      })
+      .setDepth(6)
+      .explode(16);
+    if (this.player.lives <= 0) this.die(false);
+  }
+
+  /** Gore per §6, then the camera tears back to the spawn. Never black. */
+  die(byVoid) {
+    const p = this.player.p;
+    if (p.dead) return;
+    p.dead = true;
+    this.phase = 'DYING';
+    this.slow = 1;
+    if (!byVoid) {
+      this.cameras.main.flash(400, 160, 20, 26);
+      synthBuzz(this, { freq: 90, dur: 0.8, gain: 0.2 });
+      this.add
+        .particles(p.x, p.y - 50, 'ch2-mote', {
+          speed: { min: 100, max: 400 },
+          lifespan: { min: 400, max: 900 },
+          quantity: 40,
+          scale: { min: 0.5, max: 1.6 },
+          tint: [0x8e1f24, 0x5c1216, 0xb03036],
+          blendMode: Phaser.BlendModes.ADD,
+          emitting: false,
+        })
+        .setDepth(6)
+        .explode(40);
+      this.time.delayedCall(650, () => {
+        playVoidDeath(this, () => this.respawn(), {
+          panTo: { x: L3.spawn.x + 200, y: 380 },
+        });
+      });
+      return;
+    }
+    playVoidDeath(this, () => this.respawn(), {
+      panTo: { x: L3.spawn.x + 200, y: 380 },
+    });
+    // The pit keeps its own ledger.
+    if (p.x > L3.detonateMinX) {
+      const c = this.add
+        .text(GAME_W / 2, 200, MISS_COMMENT, {
+          fontFamily: 'ui-monospace, Menlo, monospace',
+          fontSize: '12px',
+          color: '#5d6a78',
+        })
+        .setOrigin(0.5)
+        .setScrollFactor(0)
+        .setDepth(90)
+        .setAlpha(0);
+      this.tweens.add({
+        targets: c,
+        alpha: 0.9,
+        duration: 600,
+        delay: 900,
+        onComplete: () => this.tweens.add({ targets: c, alpha: 0, duration: 1000, delay: 2200 }),
+      });
+    }
+  }
+
+  respawn() {
+    const p = this.player.p;
+    p.x = L3.spawn.x;
+    p.y = this.field.groundAt(L3.spawn.x);
+    p.vx = 0;
+    p.vy = 0;
+    p.grounded = true;
+    p.dead = false;
+    this.player.lives = AGG.lives;
+    this.player.invulnUntil = this.time.now + 1500;
+    this.player.setVisible(true);
+    this.refreshLivesHud();
+    this.restorePlatforms();
+    this.psychos.forEach((psy) => psy.destroy());
+    this.psychos = [];
+    this.spawnPsychos();
+    const cam = this.cameras.main;
+    cam.centerOn(p.x + 140, 380);
+    cam.startFollow(this.player.fig, true, 0.1, 0.1);
+    cam.setFollowOffset(0, 60);
+    cam.flash(140, 159, 216, 232);
+    synthThud(this, { freq: 100, gain: 0.25, dur: 0.3 });
+    this.phase = 'PLAY';
+  }
+
+  // --------------------------------------------------------------- detonation
+
+  detonate() {
+    const p = this.player.p;
+    this.phase = 'DETONATE';
+    p.vx = 0;
+    p.vy = 0;
+    this.hint.setText('');
+
+    // 300ms of near-stop time — the frame holds its breath.
+    this.slow = 0.15;
+    this.time.delayedCall(300, () => {
+      this.slow = 1;
+    });
+
+    // The shell leaves all at once: every shard flung radially.
+    const cx = p.x;
+    const cy = p.y - 52;
+    this.player.shell.forEach((s, i) => {
+      if (!s.img.visible) return;
+      s.img.setVisible(false);
+      const a = (i / this.player.shell.length) * Math.PI * 2 + Math.random() * 0.4;
+      const shard = this.add.image(cx, cy, 'ch2-shard').setScale(1.7).setRotation(s.img.rotation).setDepth(7);
+      this.tweens.add({
+        targets: shard,
+        x: cx + Math.cos(a) * 320,
+        y: cy + Math.sin(a) * 320,
+        rotation: s.img.rotation + 6,
+        alpha: 0,
+        duration: 700,
+        ease: 'Quad.easeOut',
+        onComplete: () => shard.destroy(),
+      });
+    });
+    // The shock ring.
+    const ring = this.add.graphics().setDepth(8);
+    ring.lineStyle(4, 0xd8f4fc, 1);
+    ring.strokeCircle(cx, cy, 20);
+    this.tweens.add({
+      targets: ring,
+      scaleX: 14,
+      scaleY: 14,
+      alpha: 0,
+      duration: 500,
+      ease: 'Quad.easeOut',
+      onComplete: () => ring.destroy(),
+    });
+    this.cameras.main.shake(260, 0.012);
+    this.cameras.main.flash(280, 226, 236, 244);
+    synthBuzz(this, { freq: 480, dur: 0.7, gain: 0.24 });
+    synthThud(this, { freq: 50, gain: 0.55, dur: 0.6 });
+
+    // What remains: a naked torso, and the AI still lit in its chest.
+    this.player.setVisible(false);
+    this.torso = this.add.container(cx, cy).setDepth(6);
+    this.torsoBody = this.add.image(0, 0, 'ch2-hu-body');
+    this.torsoHead = this.add.image(1, -18, 'ch2-hu-head');
+    this.torsoCore = this.add
+      .image(0, -3, 'ch2-mote')
+      .setScale(4)
+      .setTint(0x9fd8e8)
+      .setAlpha(0.8)
+      .setBlendMode(Phaser.BlendModes.ADD);
+    this.torso.add([this.torsoBody, this.torsoHead, this.torsoCore]);
+
+    // A fixed, ceremonial trajectory — the blast does the aiming, not RNG.
+    this.time.delayedCall(340, () => {
+      this.phase = 'FLIGHT';
+      this.flightT0 = this.time.now;
+      this.flightDur = 1150;
+      this.flightFrom = { x: cx, y: cy };
+      this.flightTo = { x: L3.goalX, y: this.field.groundAt(L3.goalX) - 14 };
+      this.flightH = 190;
+    });
+  }
+
+  updateFlight(now) {
+    const u = Phaser.Math.Clamp((now - this.flightT0) / this.flightDur, 0, 1);
+    const e = u; // linear x, parabolic y — a thrown body, not a jump
+    const x = Phaser.Math.Linear(this.flightFrom.x, this.flightTo.x, e);
+    const y =
+      Phaser.Math.Linear(this.flightFrom.y, this.flightTo.y, e) - this.flightH * 4 * u * (1 - u);
+    this.torso.setPosition(x, y);
+    this.torso.setRotation(u * Math.PI * 0.5);
+    if (u >= 1) this.beginEnd();
+  }
+
+  // --------------------------------------------------------------------- end
+
+  beginEnd() {
+    this.phase = 'END';
+    const gy = this.field.groundAt(L3.goalX);
+    // It lands like laundry. Rotation finishes to lying flat.
+    this.tweens.add({
+      targets: this.torso,
+      rotation: Math.PI * 0.5,
+      y: gy - 8,
+      duration: 260,
+      ease: 'Quad.easeOut',
+    });
+    synthThud(this, { freq: 90, gain: 0.3, dur: 0.35 });
+    this.cameras.main.stopFollow();
+    this.cameras.main.pan(L3.goalX + 160, 380, 1400, 'Sine.easeInOut');
+
+    // The core keeps breathing. Everything else is done.
+    this.tweens.add({ targets: this.torsoCore, alpha: 0.25, scale: 2.6, duration: 1300, yoyo: true, repeat: -1 });
+
+    // Far away, the next prosthetic rises into the gate's cold light.
+    const nextBody = this.add
+      .image(L3.gateX + 20, L3.ground + 60, 'ch2-aug-body')
+      .setScale(1.5)
+      .setAlpha(0)
+      .setDepth(3);
+    const nextGlow = this.add
+      .image(L3.gateX + 20, L3.ground + 40, 'ch2-mote')
+      .setScale(8)
+      .setTint(0x9fd8e8)
+      .setAlpha(0)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(2);
+    this.tweens.add({ targets: nextGlow, alpha: 0.5, duration: 1600, delay: 1200 });
+    this.tweens.add({
+      targets: nextBody,
+      alpha: 0.95,
+      y: L3.ground - 16,
+      duration: 3400,
+      delay: 1400,
+      ease: 'Sine.easeInOut',
+    });
+
+    // The subtitle, one character at a time.
+    const sub = this.add
+      .text(GAME_W / 2, 100, '', {
+        fontFamily: 'ui-monospace, Menlo, monospace',
+        fontSize: '15px',
+        color: '#9fb4c4',
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(60);
+    let i = 0;
+    const typeTimer = this.time.addEvent({
+      delay: 42,
+      repeat: SUBTITLE.length - 1,
+      callback: () => {
+        i++;
+        sub.setText(SUBTITLE.slice(0, i));
+        if (i >= SUBTITLE.length) {
+          this.time.delayedCall(900, () => {
+            this.add
+              .text(GAME_W / 2, GAME_H - 60, 'CHAPTER 2 · END\nENTER — menu', {
+                fontFamily: 'ui-monospace, Menlo, monospace',
+                fontSize: '13px',
+                color: '#5d6a78',
+                align: 'center',
+              })
+              .setOrigin(0.5)
+              .setScrollFactor(0)
+              .setDepth(60);
+            this.endReady = true;
+          });
+          typeTimer.destroy();
+        }
+      },
+    });
+  }
+
+  // -------------------------------------------------------------------- loop
+
+  readInput() {
+    const k = this.keys;
+    return {
+      left: k.left.isDown || k.a.isDown,
+      right: k.right.isDown || k.d.isDown,
+      jump: k.jump.isDown,
+    };
+  }
+
+  update(time, delta) {
+    const now = this.time.now;
+    const dt = Math.min(delta / 1000, 1 / 30) * this.slow;
+
+    if (this.phase === 'END') {
+      if (this.endReady && Phaser.Input.Keyboard.JustDown(this.keys.enter)) this.scene.start('Menu');
+      return;
+    }
+    if (this.phase === 'FORM' || this.phase === 'DYING') {
+      this.player.fig.setScale(this.figScale ?? 1, this.figScale ?? 1);
+      return;
+    }
+    if (this.phase === 'DETONATE') return; // frozen mid-air, tweens carry it
+    if (this.phase === 'FLIGHT') {
+      this.updateFlight(now);
+      return;
+    }
+
+    // PLAY
+    const p = this.player.p;
+    if (p.grounded) this.groundedAt = now;
+
+    const input = this.readInput();
+    const res = this.player.step(dt, input, (x) => this.groundYAt(x), { worldEnd: L3.worldEnd });
+    this.player.animate(dt);
+    if (res && res.land && res.land > AGG.shockMinVy) this.shockwave(p.x, p.y, res.land);
+
+    this.updatePlatforms(now);
+
+    // F — true edge, only armed in mid-air near the pit, inside the window.
+    const fEdge = this.keys.f.isDown && !this.fPrev;
+    this.fPrev = this.keys.f.isDown;
+    if (
+      fEdge &&
+      !p.grounded &&
+      !p.dead &&
+      p.x > L3.detonateMinX &&
+      now - this.groundedAt <= AGG.detonateWindowMs
+    ) {
+      this.detonate();
+      return;
+    }
+
+    // Psychos hunt the shell; contact costs a life.
+    const target = { x: p.x, y: p.y - 50 };
+    for (const psy of this.psychos) {
+      if (!psy.alive) continue;
+      const hit = psy.step(dt, target, now);
+      if (hit && !this.player.hurt && !p.dead) this.hurtPlayer(psy);
+    }
+
+    // The void.
+    if (!p.dead && p.y > L3.killY) {
+      this.die(true);
+      return;
+    }
+
+    // Hint swap near the pit.
+    if (p.x > L3.detonateMinX - 140) this.hint.setText('DETONATE: press F in mid-air');
+    else if (this.hint.text.startsWith('DETONATE'))
+      this.hint.setText('A/D · ←/→ move — SPACE jump — the world cannot hold you');
   }
 }
