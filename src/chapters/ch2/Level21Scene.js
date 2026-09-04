@@ -92,27 +92,71 @@ const SHAFT = {
 
 const RAMP = {
   contour: [
-    { x: 5400, y: 5150 },
-    { x: 5700, y: 5180 },
-    { x: 6300, y: 5480 }, // 28° — speed comes back
-    { x: 6900, y: 5730 },
-    { x: 7050, y: 5760 },
-    { x: 7110, y: 5722 }, // rubble bump — hop
-    { x: 7170, y: 5760 },
-    // 280px of runway after the bump — a fast bump-hop lands ~7360, safe;
-    // then the pit is its own deliberate jump.
-    // PIT 7450–7590: hop or die
-    { x: 7650, y: 5800 },
-    { x: 8100, y: 5910 }, // long runout
-    { x: 8600, y: 5940 }, // flattens — the glow is near
-    { x: 9050, y: 5940 },
+    { x: 7460, y: 4100 }, // vent-stack crown — the climb pays out here
+    { x: 7700, y: 4130 },
+    { x: 8300, y: 4430 }, // 28° — speed comes back
+    { x: 8900, y: 4680 },
+    { x: 9050, y: 4710 },
+    { x: 9110, y: 4672 }, // rubble bump — hop
+    { x: 9170, y: 4710 },
+    // PIT 9450–9590: hop or die
+    { x: 9650, y: 4750 },
+    { x: 10100, y: 4860 }, // long runout
+    { x: 10600, y: 4890 }, // flattens — the glow is near
+    { x: 11050, y: 4890 },
   ],
-  gaps: [{ from: 7450, to: 7590 }],
-  killY: 6450,
-  spawn: { x: 5430, y: 5150 - ROLL_TUNE.radius },
-  worldEnd: 9000,
-  prostheticX: 8780,
-  endTriggerX: 8350,
+  gaps: [{ from: 9450, to: 9590 }],
+  killY: 5400,
+  spawn: { x: 7500, y: 4100 - ROLL_TUNE.radius },
+  worldEnd: 11000,
+  prostheticX: 10780,
+  endTriggerX: 10350,
+  endGroundY: 4890,
+};
+
+// The collapse chase: a corridor the building eats behind you (§6.1).
+const CHASE = {
+  contour: [
+    { x: 4300, y: 5050 }, // cushion lip
+    { x: 4700, y: 5060 },
+    { x: 5200, y: 5060 },
+    { x: 5260, y: 5022 }, // instrument cabinet — hop
+    { x: 5320, y: 5060 },
+    { x: 5800, y: 5060 },
+    { x: 5860, y: 5022 }, // gurney — hop
+    { x: 5920, y: 5060 },
+    { x: 6400, y: 5060 },
+    { x: 6460, y: 5022 }, // cabinet — hop
+    { x: 6520, y: 5060 },
+    { x: 7100, y: 5090 }, // the floor simply ends — the vent slot gapes
+    { x: 7320, y: 4100 }, // (inside the slot gap) — the stack's crown
+    { x: 7460, y: 4100 },
+  ],
+  gaps: [{ from: 7101, to: 7319 }], // the slot: cling or fall
+  killY: 5260,
+  spawn: { x: 4520, y: 5050 - ROLL_TUNE.radius },
+  worldEnd: 7450,
+  collapseStartX: 4180,
+  collapseSpeed: 238,
+  jars: [
+    { x: 5450, limb: 'ch2-hu-arm', label: 'your right arm' },
+    { x: 6120, limb: 'ch2-hu-leg', label: 'your left leg' },
+    { x: 6780, limb: 'ch2-hu-leg', label: 'your right leg' },
+  ],
+};
+
+// The vent slot: two faces, 220px apart, zigzag up (§6.1 splat-climb).
+const CLIMB = {
+  faceL: 7100, // corridor's cut face — cling while moving left
+  topL: 4150,
+  faceR: 7320, // vent stack's face — cling while moving right
+  topR: 4100,
+  bottom: 5340, // faces end; below this is the drop
+  killY: 5620,
+  exitY: 4130, // above the stack's crown…
+  exitX: 7380, // …and past its face = out
+  vaultVy: -780,
+  vaultVx: 400,
 };
 
 const PROMPTS = [
@@ -270,6 +314,21 @@ export default class Level21Scene extends Phaser.Scene {
     g.lineStyle(1, 0x2fbf71, 0.8);
     for (let i = 0; i < 4; i++) g.lineBetween(5, 8 + i * 6, 5 + 18 + (i % 2) * 6, 8 + i * 6);
     g.generateTexture('ch2-terminal', 34, 44);
+    g.clear();
+
+    // Specimen jar: your own limb, floating in preservative green (§6.1).
+    g.fillStyle(0x0e1a1c, 0.95);
+    g.fillRoundedRect(0, 0, 28, 44, 4);
+    g.fillStyle(0x27443e, 0.55);
+    g.fillRect(3, 6, 22, 33); // fluid
+    g.fillStyle(0x6b5a54, 0.9);
+    g.fillRoundedRect(10, 12, 8, 22, 3); // the limb, adrift
+    g.fillStyle(0x39424e, 1);
+    g.fillRect(0, 0, 28, 5);
+    g.fillRect(0, 39, 28, 5); // caps
+    g.lineStyle(1, 0x9fd8e8, 0.5);
+    g.lineBetween(4, 8, 4, 36); // glass sheen
+    g.generateTexture('ch2-jar', 28, 44);
     g.destroy();
   }
 
@@ -1336,9 +1395,9 @@ export default class Level21Scene extends Phaser.Scene {
           })
           .setScrollFactor(0)
           .setDepth(85);
-        cam.pan(5794, 5228, 750, 'Cubic.easeInOut', true, () => {
+        cam.pan(5000, 4990, 750, 'Cubic.easeInOut', true, () => {
           streaks.destroy();
-          this.setupRamp();
+          this.setupChase();
         });
       });
     }
@@ -1361,6 +1420,396 @@ export default class Level21Scene extends Phaser.Scene {
       .explode(12);
   }
 
+  // --------------------------------------------------------------- chase act
+
+  setupChase() {
+    this.phase = 'CHASE';
+    this.vessel.say('Evacuation notice: this floor is being reclaimed. Remaining is not authorized.');
+    this.hint.setText('A/D — roll · SPACE — hop · do not stop');
+
+    const field = new Heightfield(CHASE.contour, CHASE.gaps);
+    field.draw(this, { maxX: 7460, bottom: 5850 });
+    this.buildChaseBackdrop();
+    this.buildVentSlot();
+    this.buildJars(field);
+
+    // The collapse: a ragged bite-front of dust, slab teeth and furnace glow
+    // that eats the corridor. Built in layers so it reads as a WALL, not fog.
+    this.collapseX = CHASE.collapseStartX;
+    this.collapseFig = this.add.container(this.collapseX, 4800).setDepth(4);
+    const backDust = this.add
+      .image(-110, 0, 'ch2-mote')
+      .setScale(14, 60)
+      .setTint(0x241f1c)
+      .setAlpha(0.32);
+    // Jagged leading edge: broken floor slabs chewing right.
+    const teeth = this.add.graphics();
+    teeth.fillStyle(0x17130f, 0.95);
+    teeth.beginPath();
+    teeth.moveTo(30, -640);
+    for (let i = 0; i <= 12; i++) {
+      const y = -640 + i * 110;
+      teeth.lineTo(30 + ((i * 37) % 54) - 14, y);
+      teeth.lineTo(-26 - ((i * 53) % 60), y + 55);
+    }
+    teeth.lineTo(30, 700);
+    teeth.closePath();
+    teeth.fillPath();
+    teeth.lineStyle(2, 0x3d342c, 0.8);
+    for (let i = 0; i < 8; i++) {
+      const y = -560 + i * 150;
+      teeth.lineBetween(-10 - (i % 3) * 18, y, 22, y + 60);
+    }
+    const biteGlow = this.add
+      .image(24, 0, 'ch2-mote')
+      .setScale(7, 46)
+      .setTint(0xff8a3c)
+      .setAlpha(0.3)
+      .setBlendMode(Phaser.BlendModes.ADD);
+    this.collapseFig.add([backDust, teeth, biteGlow]);
+    // Sparks and grit tossed off the bite line.
+    this.collapseSparks = this.add.particles(0, 0, 'ch2-mote', {
+      x: 10,
+      y: { min: -500, max: 560 },
+      speedX: { min: 40, max: 220 },
+      speedY: { min: -140, max: 60 },
+      lifespan: { min: 200, max: 500 },
+      quantity: 1,
+      frequency: 90,
+      scale: { min: 0.3, max: 0.9 },
+      alpha: { start: 0.8, end: 0 },
+      tint: [0xffc46b, 0xff8a3c, 0x6b5a4a],
+      blendMode: Phaser.BlendModes.ADD,
+      emitting: true,
+    });
+    this.collapseSparks.setDepth(5);
+    this.collapseSparks.setPosition(this.collapseX, 4800);
+    this.collapseRumbleAt = 0;
+
+    this.enterRollPhase(field, CHASE.spawn, { x: 4200, y: 4650, w: 3400, h: 1400 },
+      'A/D — roll · SPACE — hop · do not stop');
+    this.torso.p.speed = 140; // rolling off the body bags
+    this.cling = null;
+    this.jarsSmashed = this.jarsSmashed || 0;
+  }
+
+  buildChaseBackdrop() {
+    // Service corridor: lockers, pipes, and the live feed of your own hunt.
+    const g = this.add.graphics().setDepth(1);
+    g.fillStyle(0x080a10, 1);
+    g.fillRect(4200, 4650, 3400, 1400);
+    g.lineStyle(3, 0x12161f, 1);
+    for (let i = 0; i < 10; i++) {
+      const x = 4350 + i * 320;
+      g.lineBetween(x, 4700, x, 5050);
+    }
+    g.lineStyle(2, 0x1d2632, 1);
+    g.lineBetween(4200, 4780, 7600, 4780); // pipe run
+    g.lineBetween(4200, 4794, 7600, 4794);
+
+    // Live-feed screens: your escape is programming (story §7).
+    [5100, 6300].forEach((sx) => {
+      this.add
+        .rectangle(sx, 4870, 250, 96, 0x05070c, 0.92)
+        .setStrokeStyle(1, 0xb03036, 0.7)
+        .setDepth(2);
+      this.add
+        .text(sx, 4852, 'ANOMALY CULL · LIVE', {
+          fontFamily: 'ui-monospace, Menlo, monospace',
+          fontSize: '14px',
+          color: '#ff5560',
+        })
+        .setOrigin(0.5)
+        .setDepth(2);
+      this.add
+        .text(sx, 4880, '2.1M WATCHING', {
+          fontFamily: 'ui-monospace, Menlo, monospace',
+          fontSize: '11px',
+          color: '#7f8b99',
+        })
+        .setOrigin(0.5)
+        .setDepth(2);
+      const dot = this.add.circle(sx - 108, 4840, 4, 0xff2d3c).setDepth(2);
+      this.tweens.add({ targets: dot, alpha: 0.15, duration: 700, yoyo: true, repeat: -1 });
+    });
+  }
+
+  buildVentSlot() {
+    // Corridor's cut face (left) and the vent stack (right): two slabs with
+    // 220px of nothing between them. The stack's crown is the way out.
+    const g = this.add.graphics().setDepth(2);
+    g.fillStyle(0x10141c, 1);
+    g.fillRect(CLIMB.faceR, CLIMB.topR, 140, CLIMB.bottom - CLIMB.topR + 220);
+    const rim = this.add.graphics().setDepth(3);
+    rim.lineStyle(2, 0x3a4a5c, 1);
+    rim.lineBetween(CLIMB.faceL, CLIMB.topL, CLIMB.faceL, CLIMB.bottom + 20);
+    rim.lineBetween(CLIMB.faceR, CLIMB.topR, CLIMB.faceR, CLIMB.bottom + 20);
+    rim.lineStyle(1, 0x1d2632, 1);
+    for (let y = CLIMB.topR + 40; y < CLIMB.bottom; y += 90) {
+      rim.lineBetween(CLIMB.faceL - 60, y, CLIMB.faceL, y + 26);
+      rim.lineBetween(CLIMB.faceR, y + 40, CLIMB.faceR + 60, y + 14);
+    }
+    // The slot's dark maw below.
+    g.fillStyle(0x04050a, 1);
+    g.fillRect(CLIMB.faceL, CLIMB.bottom, CLIMB.faceR - CLIMB.faceL, 400);
+  }
+
+  buildJars(field) {
+    this.jars = CHASE.jars.map((j) => {
+      const gy = field.groundAt(j.x);
+      const img = this.add.image(j.x, gy - 22, 'ch2-jar').setDepth(3);
+      const glow = this.add
+        .image(j.x, gy - 22, 'ch2-mote')
+        .setScale(5, 7)
+        .setTint(0x27443e)
+        .setAlpha(0.35)
+        .setBlendMode(Phaser.BlendModes.ADD)
+        .setDepth(2);
+      return { ...j, img, glow, smashed: false };
+    });
+  }
+
+  smashJar(jar) {
+    jar.smashed = true;
+    jar.img.destroy();
+    jar.glow.destroy();
+    this.jarsSmashed++;
+    this.registry.set('ch2.limbs', this.jarsSmashed);
+    // Glass, preservative, and the limb itself tumbling free.
+    this.add
+      .particles(jar.img.x, jar.img.y, 'ch2-mote', {
+        speed: { min: 60, max: 240 },
+        lifespan: { min: 300, max: 700 },
+        quantity: 18,
+        scale: { min: 0.3, max: 0.9 },
+        tint: [0x9fd8e8, 0x27443e, 0xd8f4fc],
+        blendMode: Phaser.BlendModes.ADD,
+        emitting: false,
+      })
+      .setDepth(6)
+      .explode(18);
+    const limb = this.add
+      .image(jar.img.x, jar.img.y, jar.limb)
+      .setTint(0x6b5a54)
+      .setDepth(5);
+    this.tweens.add({
+      targets: limb,
+      y: limb.y - 90,
+      rotation: 2.4,
+      duration: 480,
+      ease: 'Quad.easeOut',
+      onComplete: () =>
+        this.tweens.add({ targets: limb, y: limb.y + 70, alpha: 0.4, duration: 700, ease: 'Quad.easeIn' }),
+    });
+    synthThud(this, { freq: 260, gain: 0.2, dur: 0.12 });
+    this.cameras.main.shake(50, 0.002);
+    // The toast: inventory of a body you no longer own.
+    const toast = this.add
+      .text(GAME_W / 2, 118, `recovered: ${jar.label} — ${this.jarsSmashed}/3`, {
+        fontFamily: 'ui-monospace, Menlo, monospace',
+        fontSize: '13px',
+        color: '#7f8b99',
+      })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(60)
+      .setAlpha(0);
+    this.tweens.add({
+      targets: toast,
+      alpha: 0.95,
+      duration: 300,
+      onComplete: () => this.tweens.add({ targets: toast, alpha: 0, duration: 900, delay: 1600 }),
+    });
+  }
+
+  updateChase(dt) {
+    this.updateRoll(dt, CHASE.worldEnd, CHASE.killY);
+    const p = this.torso.p;
+    if (p.dead) return;
+
+    // The wall eats forward.
+    this.collapseX += CHASE.collapseSpeed * dt;
+    this.collapseFig.setPosition(this.collapseX, 4880);
+    if (this.collapseSparks) this.collapseSparks.setPosition(this.collapseX, 4880);
+    const near = Phaser.Math.Clamp(1 - (p.x - this.collapseX) / 700, 0, 1);
+    if (this.time.now > this.collapseRumbleAt) {
+      this.collapseRumbleAt = this.time.now + 520;
+      synthThud(this, { freq: 50, gain: 0.08 + near * 0.2, dur: 0.5 });
+    }
+    if (near > 0.25) this.cameras.main.shake(120, 0.001 + near * 0.003);
+
+    // Jars.
+    for (const j of this.jars) {
+      if (!j.smashed && Math.abs(p.x - j.x) < 34 && Math.abs(p.y + ROLL_TUNE.radius - j.img.y - 22) < 60) {
+        this.smashJar(j);
+      }
+    }
+
+    // Eaten.
+    if (p.x < this.collapseX + 30) {
+      p.dead = true;
+      this.startDeath();
+      return;
+    }
+
+    // The slot mouth: the climb takes over.
+    if (p.x > 6900) this.setupClimb();
+  }
+
+  // --------------------------------------------------------------- climb act
+
+  setupClimb() {
+    this.phase = 'CLIMB';
+    this.vessel.say('…what are you doing.');
+    this.hint.setText('fall toward a wall — you stick · SPACE — vault · hold away — let go');
+    this.cling = null;
+    this.splattedOnce = false;
+    // The collapse jams itself into the corridor mouth and settles.
+    this.collapseX = Math.min(this.collapseX, 6600);
+    const cam = this.cameras.main;
+    cam.stopFollow();
+    cam.setBounds(6500, 3550, 2200, 2400);
+    cam.startFollow(this.torso.blob, true, 0.1, 0.12);
+    cam.setFollowOffset(0, 40);
+  }
+
+  splatWall(side, x) {
+    const p = this.torso.p;
+    this.cling = { side, x, t: 0, letGo: 0 };
+    p.vx = 0;
+    p.vy = Math.min(p.vy, 50);
+    this.torso.squash(-7);
+    // Wet smack + a blood smear the wall keeps.
+    synthThud(this, { freq: 220, gain: 0.18, dur: 0.12 });
+    this.cameras.main.shake(60, 0.002);
+    this.add
+      .image(x + side * 6, p.y, 'ch2-mote')
+      .setScale(5, 8)
+      .setTint(0x5c1216)
+      .setAlpha(0.55)
+      .setDepth(3);
+    this.add
+      .particles(x, p.y, 'ch2-mote', {
+        speed: { min: 30, max: 140 },
+        lifespan: 400,
+        quantity: 10,
+        scale: { min: 0.3, max: 0.8 },
+        tint: [0x8e1f24, 0xa08a83],
+        emitting: false,
+      })
+      .setDepth(6)
+      .explode(10);
+    if (!this.splattedOnce) {
+      this.splattedOnce = true;
+      this.vessel.say('That is not a sanctioned movement.');
+    }
+  }
+
+  updateClimb(dt) {
+    const p = this.torso.p;
+    if (p.dead) {
+      this.updateDeath(dt);
+      return;
+    }
+    const k = this.keys;
+    const R = ROLL_TUNE.radius;
+    const left = k.left.isDown || k.a.isDown;
+    const right = k.right.isDown || k.d.isDown;
+    const jump = Phaser.Input.Keyboard.JustDown(k.jump);
+
+    if (this.cling) {
+      const c = this.cling;
+      c.t += dt;
+      // Topping out: reach a face's lip and the meat heaves itself over.
+      if (c.side === 1 && p.y <= CLIMB.topR + 26) {
+        this.cling = null;
+        p.x = CLIMB.faceR + R + 6;
+        p.y = 4100 - R;
+        p.vx = 0; p.vy = 0; p.grounded = true; p.speed = 120;
+        this.torso.squash(-5);
+        synthThud(this, { freq: 140, gain: 0.2, dur: 0.25 });
+        this.cameras.main.shake(70, 0.002);
+        this.torso.updateFlesh(dt);
+        return;
+      }
+      if (c.side === -1 && p.y <= CLIMB.topL + 26) {
+        this.cling = null;
+        p.x = CLIMB.faceL - R - 6;
+        p.y = 5090 - R;
+        p.vx = 0; p.vy = 0; p.grounded = true; p.speed = -100;
+        this.torso.squash(-5);
+        synthThud(this, { freq: 140, gain: 0.2, dur: 0.25 });
+        this.torso.updateFlesh(dt);
+        return;
+      }
+      // The slide: wet grip, bleeding altitude. Grip fails after a moment.
+      p.vy = Math.min(p.vy + 480 * dt, c.t > 1.4 ? 210 : 60);
+      p.y += p.vy * dt;
+      p.x = c.x;
+      if (jump) {
+        // Vault: away and UP. The only verticality a torso has left.
+        this.cling = null;
+        p.grounded = false;
+        p.vy = CLIMB.vaultVy;
+        p.vx = -c.side * CLIMB.vaultVx;
+        this.torso.squash(5);
+        synthThud(this, { freq: 170, gain: 0.16, dur: 0.12 });
+      } else if ((c.side === 1 && left) || (c.side === -1 && right)) {
+        c.letGo += dt;
+        if (c.letGo > 0.16) {
+          this.cling = null;
+          p.grounded = false;
+          p.vx = -c.side * 150;
+        }
+      } else c.letGo = 0;
+      if (this.cling && p.y > CLIMB.bottom) this.cling = null; // slid off the face
+      this.torso.updateFlesh(dt);
+      return;
+    }
+
+    if (p.grounded) {
+      const ev = this.torso.stepGrounded(dt, { left, right, jump }, this.rollField, { worldEnd: CHASE.worldEnd });
+      if (ev === 'bonk') {
+        this.cameras.main.shake(60, 0.002);
+        synthThud(this, { freq: 110, gain: 0.2, dur: 0.2 });
+      }
+      // Back on the corridor floor, the collapse is still eating it.
+      if (p.x < this.collapseX + 30) {
+        p.dead = true;
+        this.startDeath();
+        return;
+      }
+    } else {
+      const ev = this.torso.stepAirborne(dt, { left, right, jump: false }, this.rollField, { worldEnd: CHASE.worldEnd });
+      if (ev === 'slam') {
+        this.startDeath();
+        return;
+      }
+      // Face contact = splat. Meat sticks on any touch; only pressing AWAY
+      // peels it off. Each face ignores contact while you're still moving
+      // TOWARD the slot from its side (so the takeoff roll doesn't glue
+      // you to the lip) — press into the wall and even that sticks.
+      if (!p.grounded) {
+        if (p.x < CLIMB.faceR && p.x + R >= CLIMB.faceR && (p.vx >= -60 || right) && p.y > CLIMB.topR + 12 && p.y < CLIMB.bottom) {
+          this.splatWall(1, CLIMB.faceR - R);
+        } else if (p.x > CLIMB.faceL && p.x - R <= CLIMB.faceL && (p.vx <= 60 || left) && p.y > CLIMB.topL + 12 && p.y < CLIMB.bottom) {
+          this.splatWall(-1, CLIMB.faceL + R);
+        }
+      }
+    }
+
+    if (p.y > CLIMB.killY) {
+      p.dead = true;
+      this.startDeath();
+      return;
+    }
+
+    // Out: over the stack's crown, onto the ramp.
+    if (p.y < CLIMB.exitY && p.x > CLIMB.exitX) this.setupRamp();
+
+    this.torso.updateFlesh(dt);
+  }
+
   // ---------------------------------------------------------------- ramp act
 
   setupRamp() {
@@ -1368,12 +1817,17 @@ export default class Level21Scene extends Phaser.Scene {
     this.vessel.say('Please stop. You are damaging company property.');
 
     const field = new Heightfield(RAMP.contour, RAMP.gaps);
-    field.draw(this, { maxX: RAMP.worldEnd + 50, bottom: 6550 });
+    field.draw(this, { maxX: RAMP.worldEnd + 50, bottom: 5600 });
     this.buildRampBackdrop();
 
-    this.enterRollPhase(field, RAMP.spawn, { x: 5350, y: 4950, w: 3800, h: 1700 },
+    // One-shot continuity: the climb spits the torso over the stack's crown
+    // and it LANDS on the ramp — same body, same frame, no cut.
+    const sp = { x: Math.max(7500, (this.torso ? this.torso.p.x : 0) + 40), y: 4100 - ROLL_TUNE.radius };
+    this.enterRollPhase(field, sp, { x: 6800, y: 3500, w: 4400, h: 2100 },
       'A/D — roll · SPACE — hop · do not stop');
-    this.torso.p.speed = 220; // carried out of the shaft
+    this.torso.p.speed = 220; // carried over the crown
+    this.torso.squash(-6);
+    this.cameras.main.shake(70, 0.002);
     this.endStarted = false;
   }
 
@@ -1381,28 +1835,28 @@ export default class Level21Scene extends Phaser.Scene {
     // Underground ruins: crushed slabs, and far right — the cold glow.
     const g = this.add.graphics().setDepth(1);
     g.fillStyle(0x06080c, 1);
-    g.fillRect(5350, 4900, 3800, 1800);
+    g.fillRect(6800, 3500, 4400, 2200);
     g.lineStyle(4, 0x11161f, 1);
-    for (let i = 0; i < 12; i++) {
-      const x = 5450 + i * 300;
-      g.lineBetween(x, 5000 + (i % 4) * 160, x + 200, 5040 + (i % 4) * 160);
+    for (let i = 0; i < 13; i++) {
+      const x = 7000 + i * 300;
+      g.lineBetween(x, 4200 + (i % 4) * 160, x + 200, 4240 + (i % 4) * 160);
     }
     // Scattered limb silhouettes half-buried in the ruins — L2-2's theme
     // leaking into the end of L2-1.
     g.fillStyle(0x14181f, 1);
-    [6000, 6600, 7700, 8300].forEach((x, i) => {
-      g.fillEllipse(x, 5010 + (i % 2) * 60, 40, 12);
-      g.fillEllipse(x + 26, 5004 + (i % 2) * 60, 14, 10);
+    [7600, 8200, 9300, 9900].forEach((x, i) => {
+      g.fillEllipse(x, 4140 + (i % 2) * 60, 40, 12);
+      g.fillEllipse(x + 26, 4134 + (i % 2) * 60, 14, 10);
     });
 
     // The prosthetic, jammed in the rubble, glowing cold.
     const px = RAMP.prostheticX;
-    const py = 5940 - 14;
+    const gy = RAMP.endGroundY;
     g.fillStyle(0x181d26, 1);
-    g.fillTriangle(px - 60, 5940, px + 60, 5940, px + 10, 5940 - 46);
-    this.prosthetic = this.add.image(px, py - 12, 'ch2-prosthetic').setDepth(3);
+    g.fillTriangle(px - 60, gy, px + 60, gy, px + 10, gy - 46);
+    this.prosthetic = this.add.image(px, gy - 26, 'ch2-prosthetic').setDepth(3);
     this.prostheticGlow = this.add
-      .image(px, py - 12, 'ch2-mote')
+      .image(px, gy - 26, 'ch2-mote')
       .setScale(12)
       .setTint(0x9fd8e8)
       .setAlpha(0.2)
@@ -1482,6 +1936,14 @@ export default class Level21Scene extends Phaser.Scene {
     this.torso.updateDead(dt, this.rollField);
     if (this.time.now - this.deathAt > 450) {
       playVoidDeath(this, () => {
+        // Dying to the collapse rewinds the collapse too — fair, and the
+        // dread rebuilds from the corridor mouth.
+        if (this.phase === 'CHASE' || this.phase === 'CLIMB') {
+          this.collapseX = Math.max(CHASE.collapseStartX, this.rollSpawn.x - 700);
+          if (this.collapseFig) this.collapseFig.setPosition(this.collapseX, 4880);
+          if (this.collapseSparks) this.collapseSparks.setPosition(this.collapseX, 4880);
+          this.cling = null;
+        }
         this.torso.reset(this.rollSpawn);
         this.deathFxStarted = false;
         const cam = this.cameras.main;
@@ -1594,6 +2056,12 @@ export default class Level21Scene extends Phaser.Scene {
       }
       case 'SHAFT':
         this.updateShaft(dt);
+        break;
+      case 'CHASE':
+        this.updateChase(dt);
+        break;
+      case 'CLIMB':
+        this.updateClimb(dt);
         break;
       case 'RAMP':
         this.updateRoll(dt, RAMP.worldEnd, RAMP.killY);

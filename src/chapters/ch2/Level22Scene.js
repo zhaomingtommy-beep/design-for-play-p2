@@ -405,6 +405,9 @@ export default class Level22Scene extends Phaser.Scene {
       this.phase = 'PLAY';
       this.hint.setText('A/D — move · SPACE — jump (restored) · SHIFT — rush · J / LMB — slash ×3 · E — swing');
       this.vessel.say('The metal suits you. The unit is… pleased.');
+      if ((this.registry.get('ch2.limbs') || 0) >= 3) {
+        this.vessel.say('You carried your limbs out in your teeth. Sentimental. The unit approves.');
+      }
       this.spawnPsychos();
     }
   }
