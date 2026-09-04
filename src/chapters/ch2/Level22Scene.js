@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { GAME_W, GAME_H } from '../../constants.js';
 import { Heightfield, playVoidDeath, synthThud, synthBuzz, makeTorsoTextures } from './torso.js';
 import { AUG_TUNE, PSY_TUNE, makeAugTextures, AugPlayer, Psycho } from './aug.js';
+import { makeVesselVoice } from './vessel.js';
 
 /**
  * L2-2 「拼接」 — THE UPGRADE, level two of three (docs/chapter2-redesign.md §4).
@@ -146,6 +147,8 @@ export default class Level22Scene extends Phaser.Scene {
       .setDepth(60);
 
     this.buildAttachSite();
+    // VESSEL rides along in your skull from here on (docs/chapter2-story.md §6).
+    this.vessel = makeVesselVoice(this);
     // One take from L2-1: the prosthetic's cold glow fills the frame, then
     // recedes into the chamber — no black, the light IS the cut.
     const veil = this.add
@@ -401,6 +404,7 @@ export default class Level22Scene extends Phaser.Scene {
     } else if (this.attachStep === 4 && t - this.attachDoneAt > 900) {
       this.phase = 'PLAY';
       this.hint.setText('A/D — move · SPACE — jump (restored) · SHIFT — rush · J / LMB — slash · E — swing');
+      this.vessel.say('The metal suits you. The unit is… pleased.');
       this.spawnPsychos();
     }
   }
@@ -1187,6 +1191,8 @@ export default class Level22Scene extends Phaser.Scene {
       }
       synthThud(this, { freq: 110, gain: 0.2, dur: 0.3 });
       this.cameras.main.shake(80, 0.002);
+      // The parasite notices its own growth (docs/chapter2-story.md §6).
+      this.vessel.say(n === L2.absorbStages.half ? 'More. Bring it more.' : 'It grows. So do you.');
     }
   }
 
@@ -1400,6 +1406,7 @@ export default class Level22Scene extends Phaser.Scene {
         if (u >= 1) {
           this.ernestState = 'speak';
           this.ernest.parts.head.setRotation(-0.3 * this.ernest.facing); // looks up
+          this.vessel.say('Prohibited text. Muting recommended.');
           this.showPoem(now);
         }
       } else {
@@ -1439,6 +1446,8 @@ export default class Level22Scene extends Phaser.Scene {
         this.ernestState = 'done';
         this.ernestDone = true;
         this.registry.set('ch2.ernest', 'spared');
+        // VESSEL flinches — the poem is a hole in its record (story §8).
+        this.vessel.say('…the unit cannot retrieve the last 12 seconds. Report what you heard.');
         // Seconds later, far away: one muffled thump, one flash — out.
         this.time.delayedCall(2200, () => {
           synthThud(this, { freq: 40, gain: 0.3, dur: 1.2 });
@@ -1537,6 +1546,7 @@ export default class Level22Scene extends Phaser.Scene {
     const p = this.player.p;
     this.hint.setText('');
     this.registry.set('ch2.shards', this.player.shards);
+    this.vessel.say('You are almost complete. Almost mine.');
     // He walks into the light; the metal carries him the last steps.
     this.tweens.add({
       targets: p,

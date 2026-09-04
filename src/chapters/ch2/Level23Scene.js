@@ -8,6 +8,7 @@ import {
   synthBuzz,
 } from './torso.js';
 import { makeAugTextures, Psycho } from './aug.js';
+import { makeVesselVoice } from './vessel.js';
 
 /**
  * L2-3 「过载」 — the aggregate. The parasite has swallowed every shard in
@@ -308,6 +309,9 @@ export default class Level23Scene extends Phaser.Scene {
     this.cameras.main.centerOn(320, 380);
 
     this.buildHud();
+    // VESSEL speaks in bulletins now — no more "you" left in it (story §6).
+    this.vessel = makeVesselVoice(this);
+    this.detonateWarned = false;
 
     // One take from L2-2: the ascent's dawn light recedes from the frame.
     const veil = this.add
@@ -519,6 +523,7 @@ export default class Level23Scene extends Phaser.Scene {
       this.cameras.main.startFollow(this.player.fig, true, 0.1, 0.1);
       this.cameras.main.setFollowOffset(0, 60);
       this.hint.setText('A/D · ←/→ move — SPACE jump — the world cannot hold you');
+      this.vessel.say('Aggregation complete. The shell exceeds specification.');
     });
   }
 
@@ -920,6 +925,18 @@ export default class Level23Scene extends Phaser.Scene {
         sub.setText(SUBTITLE.slice(0, i));
         if (i >= SUBTITLE.length) {
           this.time.delayedCall(900, () => {
+            // The company's version of what just happened (story §6, bulletin voice).
+            this.add
+              .text(GAME_W / 2, GAME_H - 96,
+                'NIGHTFALL BULLETIN: Citizen 8\'s upgrade ceremony concluded with zero incidents.\nThe upgrade window remains open.', {
+                fontFamily: 'ui-monospace, Menlo, monospace',
+                fontSize: '11px',
+                color: '#46525f',
+                align: 'center',
+              })
+              .setOrigin(0.5)
+              .setScrollFactor(0)
+              .setDepth(60);
             this.add
               .text(GAME_W / 2, GAME_H - 60, 'CHAPTER 2 · END\nENTER — menu', {
                 fontFamily: 'ui-monospace, Menlo, monospace',
@@ -1007,8 +1024,13 @@ export default class Level23Scene extends Phaser.Scene {
     }
 
     // Hint swap near the pit.
-    if (p.x > L3.detonateMinX - 140) this.hint.setText('DETONATE: press F in mid-air');
-    else if (this.hint.text.startsWith('DETONATE'))
+    if (p.x > L3.detonateMinX - 140) {
+      this.hint.setText('DETONATE: press F in mid-air');
+      if (!this.detonateWarned) {
+        this.detonateWarned = true;
+        this.vessel.say('Detonation is scheduled. Compliance is expected.');
+      }
+    } else if (this.hint.text.startsWith('DETONATE'))
       this.hint.setText('A/D · ←/→ move — SPACE jump — the world cannot hold you');
   }
 }

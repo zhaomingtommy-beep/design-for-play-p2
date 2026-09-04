@@ -9,6 +9,7 @@ import {
   synthThud,
   synthBuzz,
 } from './torso.js';
+import { makeVesselVoice } from './vessel.js';
 
 /**
  * L2-1 「切除」 — THE UPGRADE, level one of three.
@@ -131,10 +132,14 @@ export default class Level21Scene extends Phaser.Scene {
     makeTorsoTextures(this);
     this.buildTextures();
     this.buildSkyline();
+    this.buildPropaganda();
     this.buildWalkWorld();
     this.buildHumanoid();
     this.buildPromptChips();
     this.buildOrSet();
+
+    this.vessel = makeVesselVoice(this); // story bible §5: customer-service register
+    this.vesselSaid = new Set();
 
     this.keys = this.input.keyboard.addKeys({
       left: 'LEFT',
@@ -338,6 +343,73 @@ export default class Level21Scene extends Phaser.Scene {
       })
       .setScrollFactor(0)
       .setDepth(40);
+  }
+
+  /**
+   * The regime's voice on the skyline (story bible §7): holographic
+   * propaganda boards hanging over the walk to the clinic. The last thing
+   * he reads with his own eyes.
+   */
+  buildPropaganda() {
+    const boards = [
+      {
+        x: 620,
+        y: 200,
+        sf: 0.42,
+        color: '#b03036',
+        glow: 0xb03036,
+        lines: 'PAIN IS FAULT\nFLESH IS PRISON\nUPGRADE IS FREEDOM',
+        size: 17,
+      },
+      {
+        x: 1620,
+        y: 170,
+        sf: 0.5,
+        color: '#27e0f5',
+        glow: 0x27e0f5,
+        lines: 'Still enduring your body?\nYou are not alone. Soon, no one will have to.\n— REFERENDUM RESULT: 81.4% IN FAVOR —',
+        size: 12,
+      },
+      {
+        x: 2420,
+        y: 130,
+        sf: 0.55,
+        color: '#ff2d78',
+        glow: 0xff2d78,
+        lines: 'RESIDUAL REGISTRY REMINDER: 90 DAYS REMAINING',
+        size: 12,
+      },
+    ];
+    for (const b of boards) {
+      const txt = this.add
+        .text(b.x, b.y, b.lines, {
+          fontFamily: 'ui-monospace, Menlo, monospace',
+          fontSize: `${b.size}px`,
+          color: b.color,
+          align: 'center',
+        })
+        .setOrigin(0.5)
+        .setScrollFactor(b.sf)
+        .setDepth(2)
+        .setAlpha(0.8);
+      const glow = this.add
+        .image(b.x, b.y, 'ch2-mote')
+        .setScale(30, 8)
+        .setTint(b.glow)
+        .setAlpha(0.06)
+        .setBlendMode(Phaser.BlendModes.ADD)
+        .setScrollFactor(b.sf)
+        .setDepth(1);
+      // Holo flicker: cheap and nervous.
+      this.tweens.add({
+        targets: [txt, glow],
+        alpha: { from: txt.alpha, to: 0.3 },
+        duration: 70,
+        yoyo: true,
+        repeat: -1,
+        repeatDelay: 1800 + Math.random() * 2200,
+      });
+    }
   }
 
   buildWalkWorld() {
@@ -638,6 +710,16 @@ export default class Level21Scene extends Phaser.Scene {
       }
     });
 
+    // VESSEL speaks — customer-service register, still says "you" (§5).
+    if (!this.vesselSaid.has('w1') && w.x > 260) {
+      this.vesselSaid.add('w1');
+      this.vessel.say('Good morning, Citizen 8. You are in good hands.');
+    }
+    if (!this.vesselSaid.has('w2') && w.x > 1250) {
+      this.vesselSaid.add('w2');
+      this.vessel.say('The procedure is routine. 7,412 upgrades completed this quarter.');
+    }
+
     // The door.
     if (w.x >= WALK.end - 110) this.startCutscene();
   }
@@ -916,6 +998,7 @@ export default class Level21Scene extends Phaser.Scene {
 
   setupRoll1() {
     this.phase = 'ROLL1';
+    this.vessel.say('Citizen 8, return to the table. This is not part of the procedure.');
     // Cut the cutscene dressing loose.
     [this.barT, this.barB].forEach((b) => b.setScale(1, 0));
     this.csText.setText('');
@@ -1049,6 +1132,7 @@ export default class Level21Scene extends Phaser.Scene {
 
   setupShaft() {
     this.phase = 'SHAFT';
+    this.vessel.say('Fault feedback noted. Your cooperation rating has been adjusted.');
     this.chunkTimer.remove();
     this.chunks.forEach((c) => c.img.destroy());
     this.chunks = [];
@@ -1232,6 +1316,7 @@ export default class Level21Scene extends Phaser.Scene {
 
   setupRamp() {
     this.phase = 'RAMP';
+    this.vessel.say('Please stop. You are damaging company property.');
 
     const field = new Heightfield(RAMP.contour, RAMP.gaps);
     field.draw(this, { maxX: RAMP.worldEnd + 50, bottom: 6550 });

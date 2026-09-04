@@ -65,7 +65,7 @@
 2. **环境叙事**：L2-1 走廊广告屏/宣传屏（文案见 §7）、空手术舱、病历屏。
 3. **VESSEL 随行台词**：每关 5–8 行字幕式语音，语气按 §5 演变（实现排期见 §9）。
 4. **Ernest 事件**：已有；诗前后各加一行 VESSEL 反应（见 §8）。
-5. **结尾**：字幕已有；END 屏追加新闻通稿体一行：`NIGHTFALL BULLETIN: Citizen 8's upgrade ceremony concluded with zero incidents. The Residual Affairs Office reminds you: the upgrade window remains open.`
+5. **结尾**：字幕已有；END 屏追加新闻通稿体两行（已实现）：`NIGHTFALL BULLETIN: Citizen 8's upgrade ceremony concluded with zero incidents. The upgrade window remains open.`
 
 ## 7. 环境文案清单（游戏内一律英文）
 
@@ -98,8 +98,9 @@
 |---|---|
 | IntroCh2 冷开场（七拍，全英文案，VESSEL 来源框 + WALK 过渡拍） | ✅ v3.5 已实现（`src/chapters/ch2/IntroCh2Scene.js`） |
 | 菜单 BEGIN → IntroCh2 → L2-1 接线 | ✅ v3.4 |
-| L2-1 宣传屏/广告屏文案 | ⬜ 待做 |
-| VESSEL 分关随行台词 | ⬜ 待做 |
-| Ernest 事件的 VESSEL 反应两行 | ⬜ 待做 |
-| L2-3 END 新闻通稿追加 | ⬜ 待做 |
+| L2-1 宣传屏/广告屏文案 | ✅ v3.6 已实现（三块全息屏：三联标语 / 公投 81.4% / 残余登记 90 天） |
+| VESSEL 分关随行台词 | ✅ v3.6 已实现（`vessel.js` 队列字幕；L2-1 客服腔 5 行，L2-2 占有腔 5 行，L2-3 公报体 2 行） |
+| Ernest 事件的 VESSEL 反应两行 | ✅ v3.6 已实现（念诗时 + 放过他之后） |
+| L2-3 END 新闻通稿追加 | ✅ v3.6 已实现 |
+| 三联单排版（标题/注释不超出纸面） | ✅ v3.6 已修复 |
 | L2-3 公投纪念碑全息 | ⬜ 待做 |

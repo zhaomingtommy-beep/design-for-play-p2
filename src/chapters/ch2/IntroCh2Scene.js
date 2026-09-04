@@ -311,11 +311,13 @@ export default class IntroCh2Scene extends Phaser.Scene {
     g.lineStyle(1, 0x232b36, 1);
     for (let y = py + 96; y < py + 250; y += 26) g.lineBetween(px + 26, y, px + 314, y);
 
-    const title = this.line(GAME_W / 2, py + 18, '', { size: 17, color: C_MAIN, origin: 0.5 });
-    this.rel(200, () => this.typewrite(title, 'VOLUNTARY EXCISION CONSENT · TRIPLICATE', 34));
-    const note = this.line(GAME_W / 2, py + 52, '', { size: 11, color: C_DIM, origin: 0.5 });
-    this.rel(1100, () =>
-      this.typewrite(note, '(white copy: patient keeps — though you will no longer have hands)', 40),
+    const title = this.line(GAME_W / 2, py + 16, '', { size: 15, color: C_MAIN, origin: 0.5 });
+    this.rel(200, () => this.typewrite(title, 'VOLUNTARY EXCISION CONSENT', 34));
+    const title2 = this.line(GAME_W / 2, py + 36, '', { size: 11, color: C_DIM, origin: 0.5 });
+    this.rel(950, () => this.typewrite(title2, '· TRIPLICATE ·', 34));
+    const note = this.line(GAME_W / 2, py + 62, '', { size: 11, color: C_DIM, origin: 0.5 });
+    this.rel(1400, () =>
+      this.typewrite(note, '(white copy: patient keeps —\nthough you will no longer have hands)', 40),
     );
 
     // The signature draws itself, pen gliding on its own.
