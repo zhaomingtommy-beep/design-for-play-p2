@@ -128,6 +128,7 @@ export default class Level22Scene extends Phaser.Scene {
       jump: 'SPACE',
       j: 'J',
       e: 'E',
+      f: 'F',
       shift: 'SHIFT',
       enter: 'ENTER',
     });
@@ -272,6 +273,10 @@ export default class Level22Scene extends Phaser.Scene {
       .setDepth(4)
       .setVisible(false);
     this.aimGfx = this.add.graphics().setDepth(2);
+    // Claw lash line (E-yank / self-zip / execution reach) and its lifetime.
+    this.lashGfx = this.add.graphics().setDepth(7);
+    this.lashUntil = 0;
+    this.lashTo = null;
   }
 
   buildShards() {
@@ -403,7 +408,7 @@ export default class Level22Scene extends Phaser.Scene {
       }
     } else if (this.attachStep === 4 && t - this.attachDoneAt > 900) {
       this.phase = 'PLAY';
-      this.hint.setText('A/D — move · SPACE — jump (restored) · SHIFT — rush · J / LMB — slash ×3 · E — swing');
+      this.hint.setText('A/D — move · SPACE — jump · SHIFT — rush · J / LMB — slash ×3 · E — claw · F — finish the broken');
       this.vessel.say('The metal suits you. The unit is… pleased.');
       if ((this.registry.get('ch2.limbs') || 0) >= 3) {
         this.vessel.say('You carried your limbs out in your teeth. Sentimental. The unit approves.');
@@ -432,6 +437,7 @@ export default class Level22Scene extends Phaser.Scene {
       jump: Phaser.Input.Keyboard.JustDown(k.jump),
       slash: Phaser.Input.Keyboard.JustDown(k.j) || this.consumePointerSlash(),
       arm,
+      exec: Phaser.Input.Keyboard.JustDown(k.f),
       dash: Phaser.Input.Keyboard.JustDown(k.shift),
     };
   }
@@ -449,7 +455,7 @@ export default class Level22Scene extends Phaser.Scene {
     if (now < this.hitstopUntil) return;
 
     const input = this.ernestState === 'speak'
-      ? { left: false, right: false, jump: false, slash: false, arm: false }
+      ? { left: false, right: false, jump: false, slash: false, arm: false, exec: false }
       : this.readInput();
 
     // Grapple arm overrides normal movement while active.
@@ -465,10 +471,13 @@ export default class Level22Scene extends Phaser.Scene {
         this.dashFx(p);
       }
       if (input.slash) this.trySlash(now);
+      if (input.exec) this.tryExecute(now);
       if (input.arm) this.startArm(now);
     }
     this.player.animate(dt);
     this.updateAimCue(now);
+    this.updateExecCues(now);
+    this.updateLash(now);
 
     // Psychos.
     for (const psy of this.psychos) {
@@ -927,6 +936,131 @@ export default class Level22Scene extends Phaser.Scene {
     }
   }
 
+  // ------------------------------------------------------------- execution (F)
+
+  /**
+   * A psycho at 1 hp is BROKEN — white-lit, swaying, marked with a floating
+   * F. Step in close and press F: the claw punches through the chest and the
+   * parasite rips the frame apart (design §4.3 — the kill floor's peak).
+   */
+  tryExecute(now) {
+    const p = this.player.p;
+    if (p.dead) return;
+    let best = null;
+    let bestD = 96;
+    for (const t of this.psychos) {
+      if (!t.alive || t.hp !== 1) continue;
+      const d = Math.hypot(t.p.x - p.x, (t.p.y - 30) - (p.y - 34));
+      if (d < bestD) {
+        best = t;
+        bestD = d;
+      }
+    }
+    if (!best) return;
+    // The reach: the claw visibly crosses the gap.
+    this.lashTo = { x: best.p.x, y: best.p.y - 32 };
+    this.lashUntil = now + 200;
+    // The kill itself.
+    const res = best.takeHit(p.x);
+    if (res === 'dead') {
+      // Slow the world to a crawl — longer than a slash kill.
+      this.hitstopUntil = now + 240;
+      this.slow = 0.25;
+      setTimeout(() => {
+        this.slow = 1;
+      }, 340);
+      this.cameras.main.shake(240, 0.014);
+      this.tweens.add({
+        targets: this.cameras.main,
+        zoom: 1.14,
+        duration: 110,
+        yoyo: true,
+        ease: 'Quad.easeOut',
+      });
+      // Core burst: white-hot heart, then the red and the sparks.
+      const x = best.p.x;
+      const y = best.p.y - 32;
+      const core = this.add
+        .image(x, y, 'ch2-mote')
+        .setScale(20)
+        .setTint(0xd8f4fc)
+        .setAlpha(0.9)
+        .setBlendMode(Phaser.BlendModes.ADD)
+        .setDepth(8);
+      this.tweens.add({
+        targets: core,
+        alpha: 0,
+        scale: 34,
+        duration: 300,
+        onComplete: () => core.destroy(),
+      });
+      this.add
+        .particles(x, y, 'ch2-mote', {
+          speed: { min: 140, max: 560 },
+          lifespan: { min: 300, max: 1000 },
+          quantity: 30,
+          scale: { min: 0.4, max: 1.9 },
+          tint: [0x8e1f24, 0x5c1216, 0xffc46b, 0xff8a3c],
+          blendMode: Phaser.BlendModes.ADD,
+          emitting: false,
+        })
+        .setDepth(6)
+        .explode(30);
+      // Executions pay out double salvage.
+      for (let i = 0; i < 4; i++) {
+        const s = this.spawnShard(x, y, false);
+        s.vx = Phaser.Math.Between(-180, 180);
+        s.vy = Phaser.Math.Between(-320, -140);
+        this.shards.push(s);
+      }
+      synthBuzz(this, { freq: 900, dur: 0.6, gain: 0.24 });
+      synthThud(this, { freq: 55, gain: 0.45, dur: 0.6 });
+      this.onPsychoDead(best);
+    }
+  }
+
+  /** Broken psychos blink white and wear a floating F — the invite. */
+  updateExecCues(now) {
+    for (const t of this.psychos) {
+      if (!t.alive || t.hp !== 1) {
+        if (t.execTag) {
+          t.execTag.destroy();
+          t.execTag = null;
+        }
+        continue;
+      }
+      const on = Math.floor(now / 150) % 2 === 0;
+      Object.values(t.parts).forEach((img) => {
+        if (on) img.setTintFill(0xffffff);
+        else img.clearTint();
+      });
+      if (!t.execTag) {
+        t.execTag = this.add
+          .text(0, -78, 'F', {
+            fontFamily: 'ui-monospace, Menlo, monospace',
+            fontSize: '15px',
+            fontStyle: 'bold',
+            color: '#ffd9a0',
+          })
+          .setOrigin(0.5);
+        t.fig.add(t.execTag);
+      }
+      t.execTag.setAlpha(0.55 + 0.4 * Math.sin(now / 120));
+    }
+  }
+
+  /** The claw's lash line — drawn while lashUntil lasts, then cleared. */
+  updateLash(now) {
+    this.lashGfx.clear();
+    if (!this.lashTo || now > this.lashUntil || !this.player) return;
+    const p = this.player.p;
+    const fade = (this.lashUntil - now) / 200;
+    this.lashGfx.lineStyle(3, 0x9fd8e8, 0.7 * fade);
+    this.lashGfx.lineBetween(p.x, p.y - 40, this.lashTo.x, this.lashTo.y);
+    this.lashGfx.lineStyle(1, 0xd8f4fc, 0.9 * fade);
+    this.lashGfx.lineBetween(p.x, p.y - 40, this.lashTo.x, this.lashTo.y);
+  }
+
   onPsychoDead(t) {
     // Third hit: the body comes apart — a gout of gibs, the corpse flung.
     this.add
@@ -965,6 +1099,10 @@ export default class Level22Scene extends Phaser.Scene {
       // (Had he walked away and detonated himself, there would be nothing
       // left to salvage.)
       this.dropLaserGun(t.p.x, t.p.y);
+    }
+    if (t.execTag) {
+      t.execTag.destroy();
+      t.execTag = null;
     }
     if (t.glowImg) t.glowImg.setVisible(false);
   }
@@ -1072,25 +1210,62 @@ export default class Level22Scene extends Phaser.Scene {
       return;
     }
 
-    // No anchor — is there meat in arm's length?
-    const prey = this.psychos.find(
-      (s) => s.alive && Math.abs(s.p.x - p.x) < 170 && Math.abs(s.p.y - p.y) < 50,
-    );
+    // No anchor — is there meat in arm's length? Two ranges:
+    // up close the claw drags the body IN; at mid-range it bites and the
+    // parasite slingshots YOU across the gap, landing in slash range with
+    // the prey staggered (design §4.2 — the claw is a combat verb too).
+    let prey = null;
+    let preyD = Infinity;
+    for (const s of this.psychos) {
+      if (!s.alive) continue;
+      const d = Math.hypot(s.p.x - p.x, (s.p.y - 30) - (p.y - 34));
+      if (d < 290 && d < preyD) {
+        prey = s;
+        preyD = d;
+      }
+    }
     if (prey) {
-      prey.yankTo(p.x + Math.sign(prey.p.x - p.x || p.facing) * 42);
-      this.add
-        .particles(prey.p.x, prey.p.y - 32, 'ch2-mote', {
-          speed: { min: 60, max: 200 },
-          lifespan: 300,
-          quantity: 10,
-          scale: { min: 0.3, max: 0.7 },
-          tint: [0xffc46b, 0x9fd8e8],
-          blendMode: Phaser.BlendModes.ADD,
-          emitting: false,
-        })
-        .setDepth(6)
-        .explode(10);
-      synthBuzz(this, { freq: 220, dur: 0.18, gain: 0.12 });
+      this.lashTo = { x: prey.p.x, y: prey.p.y - 32 };
+      this.lashUntil = now + 200;
+      if (preyD <= 170) {
+        prey.yankTo(p.x + Math.sign(prey.p.x - p.x || p.facing) * 42);
+        this.add
+          .particles(prey.p.x, prey.p.y - 32, 'ch2-mote', {
+            speed: { min: 60, max: 200 },
+            lifespan: 300,
+            quantity: 10,
+            scale: { min: 0.3, max: 0.7 },
+            tint: [0xffc46b, 0x9fd8e8],
+            blendMode: Phaser.BlendModes.ADD,
+            emitting: false,
+          })
+          .setDepth(6)
+          .explode(10);
+        synthBuzz(this, { freq: 220, dur: 0.18, gain: 0.12 });
+      } else {
+        // The bite staggers at range; the recoil throws you at it.
+        prey.state = 'stagger';
+        prey.stateUntil = now + 700;
+        const dir = Math.sign(prey.p.x - p.x) || p.facing;
+        p.facing = dir;
+        p.grounded = false;
+        p.vx = dir * 760;
+        p.vy = -190;
+        this.hitstopUntil = Math.max(this.hitstopUntil, now + 60);
+        this.add
+          .particles(prey.p.x, prey.p.y - 32, 'ch2-mote', {
+            speed: { min: 80, max: 240 },
+            lifespan: 300,
+            quantity: 14,
+            scale: { min: 0.3, max: 0.8 },
+            tint: [0x9fd8e8, 0xd8f4fc],
+            blendMode: Phaser.BlendModes.ADD,
+            emitting: false,
+          })
+          .setDepth(6)
+          .explode(14);
+        synthBuzz(this, { freq: 420, dur: 0.2, gain: 0.14 });
+      }
       return;
     }
 
