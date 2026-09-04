@@ -23,8 +23,8 @@ const L2 = {
   ground: 500,
   killY: 780,
   spawn: { x: 120, y: 500 },
-  worldEnd: 6000,
-  elevatorX: 5850,
+  worldEnd: 6700,
+  elevatorX: 6520,
 
   contour: [
     { x: 0, y: 500 },
@@ -46,13 +46,17 @@ const L2 = {
     { x: 4940, y: 505 },
     // CHASM D 4950–5600: three-ring web-swing chain
     { x: 5610, y: 505 },
-    { x: 6000, y: 505 },
+    { x: 5800, y: 505 }, // landing shelf — breathe, then look DOWN
+    // FOUNDRY SHAFT 5810–6280: the only way is UP — four-anchor climb
+    { x: 6290, y: 350 }, // the high ledge: the elevator's deck
+    { x: 6700, y: 350 },
   ],
   gaps: [
     { from: 950, to: 1230 },
     { from: 3500, to: 3820 },
     { from: 4400, to: 4720 },
     { from: 4950, to: 5600 },
+    { from: 5810, to: 6280 },
   ],
 
   anchors: [
@@ -63,6 +67,10 @@ const L2 = {
     { x: 5100, y: 340 }, // chasm ring 1
     { x: 5270, y: 318 }, // chasm ring 2
     { x: 5440, y: 340 }, // chasm ring 3
+    { x: 5830, y: 330 }, // foundry: the first catch off the shelf
+    { x: 5960, y: 252 }, // …and the floor of the world falls away
+    { x: 6090, y: 192 }, // crucible light below, cable to cable
+    { x: 6210, y: 252 }, // the last swing pays out onto the ledge
   ],
 
   psychos: [
@@ -72,6 +80,8 @@ const L2 = {
     { x: 4050 },
     { x: 4300 },
     { x: 4800 },
+    { x: 6400 }, // ledge guard
+    { x: 6470 }, // ledge guard
   ],
 
   shardSpots: [
@@ -79,7 +89,9 @@ const L2 = {
     [1300, 470], [1500, 465], [1750, 470], [2100, 465], [2350, 470],
     [3900, 470], [4150, 465], [4350, 470],
     [4750, 470], [4900, 465],
-    [5650, 470], [5800, 465],
+    [5650, 470], [5750, 465],
+    [5895, 260], [6025, 200], [6150, 260], // paid out along the climb
+    [6360, 318], [6580, 318],
   ],
 
   absorbStages: { half: 12, shoulders: 22 }, // §5.1: scattered → half-covered → shoulder mound
@@ -110,9 +122,12 @@ export default class Level22Scene extends Phaser.Scene {
     this.buildAnchors();
     this.buildShards();
     this.buildElevator();
+    this.buildFoundry();
 
     this.psychos = [];
     this.hitstopUntil = 0;
+    this.lastAnchor = null;
+    this.lastAnchorAt = 0;
     this.slow = 1; // kill slow-mo factor (real-time, independent of Phaser clock)
     this.ePrev = false;
     this.ernestState = 'idle'; // idle|approach|wait|speak|leave|done
@@ -291,14 +306,15 @@ export default class Level22Scene extends Phaser.Scene {
   }
 
   buildElevator() {
+    // The lift stands on the high ledge (deck y 350) — the climb's payout.
     const g = this.add.graphics().setDepth(2);
     g.fillStyle(0x0d1118, 1);
-    g.fillRect(L2.elevatorX, 340, 110, 170);
+    g.fillRect(L2.elevatorX, 180, 110, 175);
     const rim = this.add.graphics().setDepth(3);
     rim.lineStyle(2, 0x9fd8e8, 0.9);
-    rim.strokeRect(L2.elevatorX, 340, 110, 170);
+    rim.strokeRect(L2.elevatorX, 180, 110, 175);
     const spill = this.add
-      .image(L2.elevatorX + 55, 420, 'ch2-mote')
+      .image(L2.elevatorX + 55, 260, 'ch2-mote')
       .setScale(18, 12)
       .setTint(0x9fd8e8)
       .setAlpha(0.12)
@@ -306,13 +322,56 @@ export default class Level22Scene extends Phaser.Scene {
       .setDepth(2);
     this.tweens.add({ targets: spill, alpha: 0.26, duration: 1700, yoyo: true, repeat: -1 });
     this.add
-      .text(L2.elevatorX + 55, 318, 'ASCENT →', {
+      .text(L2.elevatorX + 55, 158, 'ASCENT →', {
         fontFamily: 'ui-monospace, Menlo, monospace',
         fontSize: '12px',
         color: '#9fd8e8',
       })
       .setOrigin(0.5, 1)
       .setDepth(3);
+  }
+
+  /** The foundry shaft: crucible glow below, cable runs, heat shimmer. */
+  buildFoundry() {
+    const g = this.add.graphics().setDepth(1);
+    // Shaft cheeks falling away into the dark.
+    g.fillStyle(0x0a0d13, 1);
+    g.fillRect(5760, 505, 50, 300);
+    g.fillRect(6280, 350, 40, 460);
+    g.lineStyle(2, 0x2a3442, 0.8);
+    g.lineBetween(5810, 505, 5810, 790);
+    g.lineBetween(6280, 350, 6280, 790);
+    // Cable runs down the shaft.
+    g.lineStyle(1, 0x1d2632, 1);
+    for (let i = 0; i < 5; i++) {
+      const cx = 5860 + i * 90;
+      g.lineBetween(cx, 140, cx, 790);
+    }
+    // The crucible: a furnace heart far below the swing line.
+    const crucible = this.add
+      .image(6045, 760, 'ch2-mote')
+      .setScale(60, 22)
+      .setTint(0xff8a3c)
+      .setAlpha(0.22)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(1);
+    this.tweens.add({ targets: crucible, alpha: 0.38, scaleY: 26, duration: 1500, yoyo: true, repeat: -1 });
+    // Heat shimmer rising off it.
+    this.add
+      .particles(6045, 740, 'ch2-mote', {
+        x: { min: -220, max: 220 },
+        speedY: { min: -90, max: -40 },
+        speedX: { min: -8, max: 8 },
+        lifespan: { min: 1200, max: 2400 },
+        quantity: 1,
+        frequency: 260,
+        scale: { min: 0.3, max: 0.9 },
+        alpha: { start: 0.35, end: 0 },
+        tint: [0xff8a3c, 0xffc46b],
+        blendMode: Phaser.BlendModes.ADD,
+        emitting: true,
+      })
+      .setDepth(1);
   }
 
   buildLivesHud() {
@@ -473,6 +532,8 @@ export default class Level22Scene extends Phaser.Scene {
       if (input.slash) this.trySlash(now);
       if (input.exec) this.tryExecute(now);
       if (input.arm) this.startArm(now);
+      // Feet on steel: every spool refills.
+      if (p.grounded) L2.anchors.forEach((a) => { a.spentReel = false; });
     }
     this.player.animate(dt);
     this.updateAimCue(now);
@@ -506,8 +567,8 @@ export default class Level22Scene extends Phaser.Scene {
       playVoidDeath(this, () => this.whipBack(() => this.respawn()));
     }
 
-    // The elevator out.
-    if (p.x > L2.elevatorX - 30 && this.phase === 'PLAY') this.startEnd();
+    // The elevator out — only from the deck, not a flyby through the void.
+    if (p.x > L2.elevatorX - 30 && p.y > 290 && p.y < 500 && this.phase === 'PLAY') this.startEnd();
   }
 
   dustPuff(x, y) {
@@ -1121,7 +1182,7 @@ export default class Level22Scene extends Phaser.Scene {
    * the swing wins over the one behind, so chains flow forward (Spider-Man
    * never re-grabs the web he just left).
    */
-  bestAnchor() {
+  bestAnchor(now) {
     const p = this.player.p;
     const sx = p.x;
     const sy = p.y - 40;
@@ -1132,6 +1193,9 @@ export default class Level22Scene extends Phaser.Scene {
     for (const a of L2.anchors) {
       const d = Phaser.Math.Distance.Between(sx, sy, a.x, a.y);
       if (d >= AUG_TUNE.armReach) continue;
+      // The web you just left is dead to you for a breath — no ratcheting
+      // up the same cable.
+      if (this.lastAnchor === a && now - this.lastAnchorAt < 900) continue;
       const ahead = (a.x - sx) * mvx;
       const score = d - Math.max(0, ahead) * 1.5;
       if (score < anchorScore) {
@@ -1146,7 +1210,7 @@ export default class Level22Scene extends Phaser.Scene {
   /** Telegraph the catch: the in-range ring breathes, a dotted line aims. */
   updateAimCue(now) {
     const p = this.player.p;
-    const found = !this.armState && !p.dead ? this.bestAnchor() : null;
+    const found = !this.armState && !p.dead ? this.bestAnchor(now) : null;
     if (!found) {
       this.aimRing.setVisible(false);
       this.aimGfx.clear();
@@ -1179,9 +1243,13 @@ export default class Level22Scene extends Phaser.Scene {
     const sx = p.x;
     const sy = p.y - 40;
 
-    const found = this.bestAnchor();
+    const found = this.bestAnchor(now);
     const anchor = found ? found.anchor : null;
     const anchorDist = found ? found.dist : 0;
+
+    // Fresh-out-of-a-swing the claw needs a beat to open again — otherwise
+    // catch-release-catch at button speed is an elevator to orbit.
+    if (anchor && now - this.lastAnchorAt < 250) return;
 
     if (anchor) {
       this.armState = {
@@ -1190,8 +1258,10 @@ export default class Level22Scene extends Phaser.Scene {
         ropeLen: Math.max(80, anchorDist),
         // The winch pulls him up INTO the swing — Spider-Man zip, then arc.
         minLen: Math.max(70, anchorDist * 0.45),
+        noReel: !!anchor.spentReel,
         t0: now,
       };
+      anchor.spentReel = true;
       p.grounded = false;
       p.vy = Math.min(p.vy, -280); // he hops into the swing
       synthBuzz(this, { freq: 340, dur: 0.1, gain: 0.1 }); // the claw bites
@@ -1289,11 +1359,19 @@ export default class Level22Scene extends Phaser.Scene {
         p.vx *= T.swingReleaseBoost;
         p.vy *= T.swingReleaseBoost;
         if (input.jump) p.vy -= T.swingJumpKick;
+        // Terminal velocity on the exit too — compounding boosts orbit.
+        const spOut = Math.hypot(p.vx, p.vy);
+        if (spOut > 620) {
+          p.vx *= 620 / spOut;
+          p.vy *= 620 / spOut;
+        }
         synthBuzz(this, { freq: 500, dur: 0.1, gain: 0.09 });
         if (input.jump) {
           const sp = Math.hypot(p.vx, p.vy);
           if (sp > 560) this.releaseFx(p);
         }
+        this.lastAnchor = a;
+        this.lastAnchorAt = now;
         this.armState = null;
         arm.setVisible(false);
         return;
@@ -1315,9 +1393,12 @@ export default class Level22Scene extends Phaser.Scene {
           ty = -ty;
         }
         // Pump only feeds the swing, never brakes it — holding a direction
-        // builds energy rhythm-free, like a web-swing should.
+        // builds energy rhythm-free, like a web-swing should. But there is
+        // a terminal swing: past it the pump just flutters the rope, so
+        // orbit is impossible and anchors stay the only way UP.
+        const spd = Math.hypot(p.vx, p.vy);
         const tv = p.vx * tx + p.vy * ty;
-        if (tv > -60) {
+        if (tv > -60 && spd < 540) {
           p.vx += tx * T.swingPump * dt;
           p.vy += ty * T.swingPump * dt;
         }
@@ -1327,7 +1408,12 @@ export default class Level22Scene extends Phaser.Scene {
       p.y += p.vy * dt;
 
       // The rope winches in fast — the zip that lifts him into the arc.
-      st.ropeLen = Math.max(st.minLen, st.ropeLen - T.swingReel * dt);
+      // Only while he's BELOW the anchor, and only if this anchor's zip
+      // hasn't been spent this airtime — otherwise catch-reel-catch is an
+      // engine and the sky is reachable. Landing refills every spool.
+      if (ry > 0 && !st.noReel) {
+        st.ropeLen = Math.max(st.minLen, st.ropeLen - T.swingReel * dt);
+      }
 
       // Rope constraint: clamp to the circle, kill outward radial velocity.
       rx = p.x - a.x;
@@ -1354,6 +1440,8 @@ export default class Level22Scene extends Phaser.Scene {
         p.vy = 0;
         p.grounded = true;
         p.vx = 0;
+        this.lastAnchor = a;
+        this.lastAnchorAt = now;
         this.armState = null;
         arm.setVisible(false);
         synthThud(this, { freq: 130, gain: 0.18, dur: 0.15 });
