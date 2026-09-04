@@ -542,12 +542,15 @@ export class Psycho {
       }
     }
 
-    // integrate (ground-hugging; falls off ledges)
+    // integrate (ground-hugging; falls off ledges; falls THROUGH broken floor)
     if (p.grounded) {
       const nx = p.x + p.vx * dt;
       const gy = this.field.groundAt(nx);
       const gyCur = this.field.groundAt(p.x);
-      if (gy === null || (gyCur !== null && gy < gyCur - AUG_TUNE.stepSnap)) {
+      if (gyCur === null) {
+        p.grounded = false; // the floor gave way under it
+        p.vy = 0;
+      } else if (gy === null || (gyCur !== null && gy < gyCur - AUG_TUNE.stepSnap)) {
         p.vx = 0; // psychos stop at ledges and walls
       } else {
         p.x = nx;

@@ -50,6 +50,13 @@ const L3 = {
   goalX: 3540, // where the thrown torso lands
   gateX: 3650, // the cold door — Chapter 3
   psychoX: [700, 1900, 2120, 2480],
+  // Crackable floor slabs (§5.2): a hard enough landing smashes the street
+  // itself open — and anything standing on it goes down with it.
+  slabs: [
+    { x0: 1480, x1: 1800 },
+    { x0: 1960, x1: 2160 },
+  ],
+  chaseSpeed: 84, // the monument district coming down behind you
 };
 
 const AGG = {
@@ -285,6 +292,8 @@ export default class Level23Scene extends Phaser.Scene {
     this.buildPlatforms();
     this.buildGate();
     this.buildPitSign();
+    this.buildSlabs();
+    this.buildChase();
 
     this.player = new AggregatePlayer(this, { x: L3.spawn.x, y: this.field.groundAt(L3.spawn.x) });
     this.psychos = [];
@@ -301,9 +310,16 @@ export default class Level23Scene extends Phaser.Scene {
       d: 'D',
       jump: 'SPACE',
       f: 'F',
+      q: 'Q',
       enter: 'ENTER',
     });
     this.input.keyboard.addCapture(['SPACE', 'LEFT', 'RIGHT']);
+    // Shed-shell tuning lives in AGG; make sure a restart finds defaults.
+    AGG.walkSpeed = 150;
+    AGG.jumpVelocity = -560;
+    this.shedUntil = 0;
+    this.shedReadyAt = 0;
+    this.shedSaid = false;
 
     this.cameras.main.setBounds(0, 0, L3.worldEnd + 200, 820);
     this.cameras.main.centerOn(320, 380);
@@ -522,9 +538,176 @@ export default class Level23Scene extends Phaser.Scene {
       this.phase = 'PLAY';
       this.cameras.main.startFollow(this.player.fig, true, 0.1, 0.1);
       this.cameras.main.setFollowOffset(0, 60);
-      this.hint.setText('A/D · ←/→ move — SPACE jump — the world cannot hold you');
+      this.hint.setText('A/D · ←/→ move — SPACE jump — Q shed shell — do not stop');
       this.vessel.say('Aggregation complete. The shell exceeds specification.');
+      // The district answers: everything behind you comes down.
+      this.chaseX = L3.spawn.x - 420;
+      this.time.delayedCall(2400, () => {
+        if (this.phase === 'PLAY') this.vessel.say('Notice: the monument district is being retired. Move.');
+      });
     });
+  }
+
+  // ------------------------------------------------------------ crack slabs
+
+  buildSlabs() {
+    const g = this.add.graphics().setDepth(3);
+    for (const s of L3.slabs) {
+      s.cracked = false;
+      // Stress fractures spider across the marked stretch — a warning and
+      // an invitation.
+      g.lineStyle(2, 0x39424e, 0.9);
+      const mid = (s.x0 + s.x1) / 2;
+      g.lineBetween(s.x0 + 14, L3.ground, mid - 30, L3.ground - 14);
+      g.lineBetween(mid - 30, L3.ground - 14, mid + 6, L3.ground);
+      g.lineBetween(mid + 30, L3.ground, mid + 58, L3.ground - 10);
+      g.lineBetween(s.x1 - 40, L3.ground, s.x1 - 16, L3.ground - 8);
+    }
+  }
+
+  crackSlab(s) {
+    s.cracked = true;
+    this.field.gaps.push({ from: s.x0, to: s.x1 });
+    // Swallow the drawn street: a black wound with torn edges.
+    const w = s.x1 - s.x0;
+    const hole = this.add.graphics().setDepth(4);
+    hole.fillStyle(0x020306, 1);
+    hole.fillRect(s.x0, L3.ground - 2, w, 360);
+    hole.fillStyle(0x14181f, 1);
+    for (let x = s.x0; x < s.x1; x += 26) {
+      const d = 4 + ((x * 7) % 13);
+      hole.fillTriangle(x, L3.ground - 2, x + 18, L3.ground - 2, x + 6, L3.ground + d);
+    }
+    s.holeGfx = hole;
+    const mid = (s.x0 + s.x1) / 2;
+    this.cameras.main.shake(200, 0.008);
+    synthThud(this, { freq: 60, gain: 0.4, dur: 0.6 });
+    this.add
+      .particles(mid, L3.ground, 'ch2-mote', {
+        speed: { min: 60, max: 300 },
+        angle: { min: 220, max: 320 },
+        lifespan: { min: 300, max: 800 },
+        quantity: 26,
+        scale: { min: 0.4, max: 1.2 },
+        tint: [0x39424e, 0x5d6a78, 0x232a34],
+        emitting: false,
+      })
+      .setDepth(6)
+      .explode(26);
+    if (!this.slabSaid) {
+      this.slabSaid = true;
+      this.vessel.say('Structural failure: logged. The district was already condemned.');
+    }
+  }
+
+  // ------------------------------------------------------------ chase (§5.3)
+
+  buildChase() {
+    // The retiring district: a grey bite-front of dust and toppling
+    // obelisks that never stops walking right.
+    this.chaseX = -800;
+    this.chaseFig = this.add.container(this.chaseX, 470).setDepth(5);
+    const dust = this.add
+      .image(-90, -40, 'ch2-mote')
+      .setScale(16, 40)
+      .setTint(0x23262e)
+      .setAlpha(0.4);
+    const teeth = this.add.graphics();
+    teeth.fillStyle(0x171a21, 0.95);
+    teeth.beginPath();
+    teeth.moveTo(26, -420);
+    for (let i = 0; i <= 8; i++) {
+      const y = -420 + i * 110;
+      teeth.lineTo(26 + ((i * 41) % 46) - 12, y);
+      teeth.lineTo(-30 - ((i * 59) % 50), y + 55);
+    }
+    teeth.lineTo(26, 500);
+    teeth.closePath();
+    teeth.fillPath();
+    // Obelisk silhouettes caught mid-topple in the dust (hand-rotated quads).
+    teeth.fillStyle(0x2c313c, 0.9);
+    const obelisk = (cx, cy, w, len, ang) => {
+      const c = Math.cos(ang);
+      const s2 = Math.sin(ang);
+      const hw = w / 2;
+      teeth.fillPoints(
+        [
+          { x: cx - c * hw, y: cy - s2 * hw },
+          { x: cx + c * hw, y: cy + s2 * hw },
+          { x: cx + c * hw - s2 * len, y: cy + s2 * hw + c * len },
+          { x: cx - c * hw - s2 * len, y: cy - s2 * hw + c * len },
+        ],
+        true,
+      );
+    };
+    obelisk(-40, -260, 26, 170, 0.5);
+    obelisk(-10, -80, 20, 120, -0.35);
+    this.chaseFig.add([dust, teeth]);
+    this.chaseRumbleAt = 0;
+  }
+
+  updateChase(dt, now) {
+    const p = this.player.p;
+    this.chaseX += L3.chaseSpeed * dt;
+    this.chaseFig.setPosition(this.chaseX, 470);
+    const near = Phaser.Math.Clamp(1 - (p.x - this.chaseX) / 640, 0, 1);
+    if (now > this.chaseRumbleAt) {
+      this.chaseRumbleAt = now + 560;
+      synthThud(this, { freq: 48, gain: 0.07 + near * 0.18, dur: 0.5 });
+    }
+    if (near > 0.3) this.cameras.main.shake(110, 0.001 + near * 0.002);
+    if (!p.dead && p.x < this.chaseX + 30) this.die(true);
+  }
+
+  // ------------------------------------------------------------ shed shell (Q)
+
+  /** Q — blow a third of the shell off: lighter, quicker, weaker landing. */
+  shedShell(now) {
+    if (now < this.shedReadyAt || now < this.shedUntil) return;
+    this.shedUntil = now + 8000;
+    this.shedReadyAt = now + 14000;
+    AGG.walkSpeed = 218;
+    AGG.jumpVelocity = -645;
+    // The shell sheds: shards burst outward, the ring thins.
+    const pl = this.player;
+    let shed = 0;
+    pl.shell.forEach((s, i) => {
+      if (i % 3 === 0 && s.img.visible) {
+        s.img.setVisible(false);
+        shed++;
+      }
+    });
+    const p = pl.p;
+    this.add
+      .particles(p.x, p.y - 50, 'ch2-shard', {
+        speed: { min: 120, max: 380 },
+        lifespan: { min: 300, max: 800 },
+        quantity: shed,
+        rotate: { min: -300, max: 300 },
+        emitting: false,
+      })
+      .setDepth(6)
+      .explode(shed);
+    this.cameras.main.shake(120, 0.004);
+    synthBuzz(this, { freq: 520, dur: 0.3, gain: 0.16 });
+    if (!this.shedSaid) {
+      this.shedSaid = true;
+      this.vessel.say('Discarding issued mass. It will be billed.');
+    }
+  }
+
+  regrowShell() {
+    AGG.walkSpeed = 150;
+    AGG.jumpVelocity = -560;
+    this.player.shell.forEach((s, i) => {
+      if (i < this.player.revealed) s.img.setVisible(true);
+    });
+    synthThud(this, { freq: 120, gain: 0.2, dur: 0.3 });
+  }
+
+  /** Shock tuning respects the shed state: lighter body, softer crater. */
+  get shockR() {
+    return (this.shedUntil > this.time.now ? 0.6 : 1) * AGG.shockRadius;
   }
 
   // ------------------------------------------------------------------ ground
@@ -592,38 +775,64 @@ export default class Level23Scene extends Phaser.Scene {
     }
   }
 
+  restoreSlabs() {
+    for (const s of L3.slabs) {
+      if (!s.cracked) continue;
+      s.cracked = false;
+      const gi = this.field.gaps.findIndex((g) => g.from === s.x0 && g.to === s.x1);
+      if (gi >= 0) this.field.gaps.splice(gi, 1);
+      if (s.holeGfx) {
+        s.holeGfx.destroy();
+        s.holeGfx = null;
+      }
+    }
+  }
+
   // ------------------------------------------------------------------ psychos
 
   spawnPsychos() {
     for (const x of L3.psychoX) this.psychos.push(new Psycho(this, x, this.field));
   }
 
-  /** Shockwave kill: the aggregate lands and the ground itself hits back. */
+  /** Shockwave kill: the aggregate lands and the ground itself hits back.
+   *  Tiers by impact: a hop scares, a fall kills, a PLUNGE breaks the
+   *  street open (§5.2). */
   shockwave(x, y, impact) {
+    const shed = this.shedUntil > this.time.now;
+    const tier = impact > 820 ? 2 : impact > 560 ? 1 : 0;
+    const radius = this.shockR * (tier === 2 ? 1.5 : tier === 1 ? 1.25 : 1);
     const power = Phaser.Math.Clamp(impact / 900, 0.6, 1.3);
     const ring = this.add.graphics().setDepth(7);
-    ring.lineStyle(3, 0x9fd8e8, 0.9);
+    ring.lineStyle(tier === 2 ? 4 : 3, tier === 2 ? 0xffc46b : 0x9fd8e8, 0.9);
     ring.strokeCircle(x, y - 6, 16);
     this.tweens.add({
       targets: ring,
       alpha: 0,
-      scaleX: AGG.shockRadius / 9,
-      scaleY: AGG.shockRadius / 22,
-      duration: 380,
+      scaleX: radius / 9,
+      scaleY: radius / 22,
+      duration: tier === 2 ? 480 : 380,
       ease: 'Quad.easeOut',
       onComplete: () => ring.destroy(),
     });
-    this.cameras.main.shake(180, 0.009 * power);
-    synthThud(this, { freq: 55, gain: 0.5, dur: 0.5 });
+    this.cameras.main.shake(tier === 2 ? 260 : 180, 0.009 * power);
+    synthThud(this, { freq: tier === 2 ? 45 : 55, gain: 0.5, dur: tier === 2 ? 0.7 : 0.5 });
     // A beat of slow-mo so the shatter reads.
     this.slow = 0.3;
     this.time.delayedCall(130, () => {
       if (this.phase === 'PLAY') this.slow = 1;
     });
+    // The street gives way under a hard enough landing.
+    if (tier >= 1 && !shed) {
+      for (const s of L3.slabs) {
+        if (s.cracked) continue;
+        const mid = (s.x0 + s.x1) / 2;
+        if (Math.abs(mid - x) < radius + (s.x1 - s.x0) / 2) this.crackSlab(s);
+      }
+    }
     for (const psy of this.psychos) {
       if (!psy.alive) continue;
       const d = Math.hypot(psy.p.x - x, psy.p.y - y);
-      if (d > AGG.shockRadius) continue;
+      if (d > radius) continue;
       psy.hp = 1;
       psy.takeHit(x);
       this.onPsychoDead(psy);
@@ -764,6 +973,14 @@ export default class Level23Scene extends Phaser.Scene {
     this.player.setVisible(true);
     this.refreshLivesHud();
     this.restorePlatforms();
+    this.restoreSlabs();
+    this.chaseX = L3.spawn.x - 420;
+    this.chaseFig.setPosition(this.chaseX, 470);
+    if (this.shedUntil) {
+      this.shedUntil = 0;
+      this.regrowShell();
+    }
+    this.shedReadyAt = 0;
     this.psychos.forEach((psy) => psy.destroy());
     this.psychos = [];
     this.spawnPsychos();
@@ -994,6 +1211,16 @@ export default class Level23Scene extends Phaser.Scene {
     if (res && res.land && res.land > AGG.shockMinVy) this.shockwave(p.x, p.y, res.land);
 
     this.updatePlatforms(now);
+    this.updateChase(dt, now);
+
+    // Q — shed the shell (edge-triggered).
+    const qEdge = this.keys.q.isDown && !this.qPrev;
+    this.qPrev = this.keys.q.isDown;
+    if (qEdge) this.shedShell(now);
+    if (this.shedUntil && now > this.shedUntil) {
+      this.shedUntil = 0;
+      this.regrowShell();
+    }
 
     // F — true edge, only armed in mid-air near the pit, inside the window.
     const fEdge = this.keys.f.isDown && !this.fPrev;
@@ -1009,10 +1236,17 @@ export default class Level23Scene extends Phaser.Scene {
       return;
     }
 
-    // Psychos hunt the shell; contact costs a life.
+    // Psychos hunt the shell; contact costs a life. Broken floors keep
+    // their own ledger: what falls into a cracked slab stays down.
     const target = { x: p.x, y: p.y - 50 };
     for (const psy of this.psychos) {
       if (!psy.alive) continue;
+      if (psy.p.y > L3.killY) {
+        psy.alive = false;
+        psy.fig.setVisible(false);
+        if (psy.glowImg) psy.glowImg.setVisible(false);
+        continue;
+      }
       const hit = psy.step(dt, target, now);
       if (hit && !this.player.hurt && !p.dead) this.hurtPlayer(psy);
     }
@@ -1031,6 +1265,6 @@ export default class Level23Scene extends Phaser.Scene {
         this.vessel.say('Detonation is scheduled. Compliance is expected.');
       }
     } else if (this.hint.text.startsWith('DETONATE'))
-      this.hint.setText('A/D · ←/→ move — SPACE jump — the world cannot hold you');
+      this.hint.setText('A/D · ←/→ move — SPACE jump — Q shed shell — do not stop');
   }
 }
