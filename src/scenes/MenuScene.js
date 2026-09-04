@@ -125,6 +125,7 @@ export default class MenuScene extends Phaser.Scene {
           '',
           'L2-1: you have no limbs. roll. the fall is the only way out.',
           'L2-2: the gaps are too wide for legs. swing like you mean it.',
+          'L2-3: you are too heavy for this world. F detonates in mid-air.',
           '',
           'SPACE / ENTER — close',
         ].join('\n'),
@@ -155,7 +156,7 @@ export default class MenuScene extends Phaser.Scene {
     const cam = this.cameras.main;
     cam.setBounds(0, 0, GAME_W, GAME_H);
     this.tweens.add({ targets: cam, zoom: 1.7, duration: 520, ease: 'Quad.easeIn' });
-    cam.pan(GAME_W / 2, GAME_H - 150, 520, 'Quad.easeIn', true, () => this.scene.start('Level21'));
+    cam.pan(GAME_W / 2, GAME_H - 150, 520, 'Quad.easeIn', true, () => this.scene.start('IntroCh2'));
   }
 
   select(i) {

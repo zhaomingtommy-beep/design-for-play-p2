@@ -5,6 +5,7 @@ import GameScene from './scenes/GameScene.js';
 import HudScene from './scenes/HudScene.js';
 import RollProtoScene from './scenes/RollProtoScene.js';
 import MenuScene from './scenes/MenuScene.js';
+import IntroCh2Scene from './chapters/ch2/IntroCh2Scene.js';
 import Level21Scene from './chapters/ch2/Level21Scene.js';
 import Level22Scene from './chapters/ch2/Level22Scene.js';
 import Level23Scene from './chapters/ch2/Level23Scene.js';
@@ -21,7 +22,7 @@ const scenes =
     : ch2
       ? ch2 === '2'
         ? [Level22Scene, Level23Scene]
-        : [MenuScene, Level21Scene, Level22Scene, Level23Scene]
+        : [MenuScene, IntroCh2Scene, Level21Scene, Level22Scene, Level23Scene]
       : [BootScene, GameScene, HudScene];
 
 const config = {
