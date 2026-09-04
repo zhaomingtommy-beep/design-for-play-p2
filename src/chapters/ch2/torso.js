@@ -102,6 +102,20 @@ export function makeTorsoTextures(scene) {
   g.fillStyle(0xffffff, 1);
   g.fillCircle(4, 4, 4);
   g.generateTexture('ch2-mote', 8, 8);
+
+  // A HEAD. Pale, eyes shut, neck wound dark — the thing that makes the
+  // cluster read as "what is left of a person", never as a ball.
+  g.fillStyle(0xc4aca2, 1);
+  g.fillCircle(8, 7, 7);
+  g.fillStyle(0xa08a83, 1);
+  g.fillEllipse(9, 11, 11, 6); // jaw slack
+  g.lineStyle(1.2, 0x3a2f2c, 0.9);
+  g.lineBetween(4, 5, 8, 5.6); // closed eye — he never asked for any of this
+  g.fillStyle(0x5c1216, 1);
+  g.fillEllipse(8, 14, 9, 5); // neck wound
+  g.fillStyle(0xd8c6bc, 0.5);
+  g.fillCircle(6, 4, 2.2); // brow highlight
+  g.generateTexture('ch2-torso-head', 16, 18);
   g.destroy();
 }
 
@@ -212,11 +226,15 @@ export class Torso {
       { img: scene.add.image(0, 0, 'ch2-stump').setOrigin(0.5, 0.2), base: 2.1, swing: 0, swingV: 0 },
       { img: scene.add.image(0, 0, 'ch2-stump').setOrigin(0.5, 0.2), base: 4.4, swing: 0, swingV: 0 },
     ];
-    this.blob.add([this.bodyImg, this.lumpRing, ...this.stumps.map((s) => s.img)]);
+    // The head rides the cluster like the stumps do — flopping on its neck
+    // wound as the body tumbles. This is a person, not a ball.
+    this.head = { img: scene.add.image(0, 0, 'ch2-torso-head').setOrigin(0.5, 0.75), base: 5.3, swing: 0, swingV: 0 };
+    this.blob.add([this.bodyImg, this.lumpRing, ...this.stumps.map((s) => s.img), this.head.img]);
 
     this.jelly = 0;
     this.jellyV = 0;
     this.lastSpinV = 0;
+    this.baseScale = 1.18;
 
     this.coreLight = scene.add
       .image(this.p.x, this.p.y, 'ch2-mote')
@@ -244,7 +262,7 @@ export class Torso {
     this.jelly = 0;
     this.jellyV = 0;
     this.blob.setPosition(p.x, p.y);
-    this.blob.setScale(1, 1);
+    this.blob.setScale(this.baseScale, this.baseScale);
     this.coreLight.setPosition(p.x, p.y);
   }
 
@@ -375,7 +393,7 @@ export class Torso {
 
     this.jellyV += (-this.jelly * 140 - this.jellyV * 10) * dt;
     this.jelly += this.jellyV * dt;
-    this.blob.setScale(1 + this.jelly, 1 - this.jelly * 0.8);
+    this.blob.setScale(this.baseScale * (1 + this.jelly), this.baseScale * (1 - this.jelly * 0.8));
     this.blob.setPosition(p.x, p.y);
 
     this.bodyImg.setRotation(p.angle);
@@ -384,7 +402,7 @@ export class Torso {
     const angAccel = (spinV - this.lastSpinV) / Math.max(dt, 1e-4);
     this.lastSpinV = spinV;
     const R = this.tune.radius + 3;
-    this.stumps.forEach((st) => {
+    [...this.stumps, this.head].forEach((st) => {
       st.swingV += (-st.swing * 60 - st.swingV * 6 - angAccel * 0.004) * dt;
       st.swing += st.swingV * dt;
       const anchor = p.angle + st.base;

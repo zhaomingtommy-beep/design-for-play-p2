@@ -84,7 +84,7 @@ const L2 = {
 
   absorbStages: { half: 12, shoulders: 22 }, // §5.1: scattered → half-covered → shoulder mound
 
-  ernest: { triggerX: 2550, spawnX: 3300, stopDist: 150, exitX: 3560 },
+  ernest: { triggerX: 2550, spawnX: 3300, stopDist: 118, exitX: 3560 },
 };
 
 const POEM = [
@@ -403,7 +403,7 @@ export default class Level22Scene extends Phaser.Scene {
       }
     } else if (this.attachStep === 4 && t - this.attachDoneAt > 900) {
       this.phase = 'PLAY';
-      this.hint.setText('A/D — move · SPACE — jump (restored) · SHIFT — rush · J / LMB — slash · E — swing');
+      this.hint.setText('A/D — move · SPACE — jump (restored) · SHIFT — rush · J / LMB — slash ×3 · E — swing');
       this.vessel.say('The metal suits you. The unit is… pleased.');
       this.spawnPsychos();
     }
@@ -735,33 +735,52 @@ export default class Level22Scene extends Phaser.Scene {
 
   trySlash(now) {
     if (now < this.player.slashReadyAt) return;
-    this.player.slashReadyAt = now + AUG_TUNE.slashCooldown;
     const p = this.player.p;
     // The emitter replaces the blade once salvaged.
     if (this.player.hasLaser) {
+      this.player.slashReadyAt = now + AUG_TUNE.slashCooldown;
       this.fireLaser(now);
       return;
     }
+
+    // Three-hit chain: cut → backhand → overhead finisher. Each press inside
+    // the window raises the stage; letting it lapse starts the chain over.
+    const c = this.combo || (this.combo = { stage: 0, windowUntil: 0 });
+    const stage = now < c.windowUntil ? Math.min(c.stage + 1, 3) : 1;
+    c.stage = stage;
+    c.windowUntil = now + 620;
+    this.player.slashReadyAt = now + [0, 230, 250, 470][stage];
     const fx = p.facing;
 
-    // Attack momentum: the body commits to the cut.
-    if (p.grounded) p.x += fx * 12;
-    else p.vx += fx * 130;
+    // Attack momentum: the body commits harder with every stage.
+    const lunge = [0, 12, 17, 26][stage];
+    if (p.grounded) p.x += fx * lunge;
+    else p.vx += fx * [0, 130, 165, 230][stage];
 
-    // Slash flash.
-    const arc = this.add
-      .rectangle(p.x + fx * 34, p.y - 34, 52, 8, 0xd8f4fc, 0.85)
-      .setDepth(7)
-      .setRotation(fx * 0.5);
+    // Slash flash — each stage its own silhouette.
+    const arc =
+      stage === 1
+        ? this.add.rectangle(p.x + fx * 34, p.y - 34, 52, 8, 0xd8f4fc, 0.85).setRotation(fx * 0.5)
+        : stage === 2
+          ? this.add.rectangle(p.x + fx * 38, p.y - 30, 58, 9, 0xd8f4fc, 0.9).setRotation(fx * -0.7)
+          : this.add.rectangle(p.x + fx * 40, p.y - 40, 66, 14, 0xffe8c4, 0.95).setRotation(fx * 1.35);
+    arc.setDepth(7);
     this.tweens.add({
       targets: arc,
       alpha: 0,
       scaleX: 1.6,
-      duration: 110,
+      duration: stage === 3 ? 170 : 110,
       onComplete: () => arc.destroy(),
     });
-    synthBuzz(this, { freq: 900, dur: 0.08, gain: 0.07 }); // the cut through air
+    synthBuzz(this, { freq: [0, 900, 1150, 640][stage], dur: stage === 3 ? 0.14 : 0.08, gain: 0.07 });
+    if (stage === 3) {
+      // The finisher lands heavy: dust ring, a beat of shake.
+      this.cameras.main.shake(70, 0.003);
+      this.dustPuff(p.x + fx * 30, p.y);
+    }
 
+    const reach = AUG_TUNE.slashReach + [0, 16, 22, 30][stage];
+    const arcHalf = AUG_TUNE.slashArc + (stage === 3 ? 14 : 0);
     const targets = [...this.psychos.filter((s) => s.alive)];
     if (this.ernest && this.ernest.alive) targets.push(this.ernest);
 
@@ -770,8 +789,9 @@ export default class Level22Scene extends Phaser.Scene {
     for (const t of targets) {
       const dx = (t.p.x - p.x) * fx;
       const dy = Math.abs((t.p.y - 30) - (p.y - 34));
-      if (dx > 0 && dx < AUG_TUNE.slashReach + 16 && dy < AUG_TUNE.slashArc) {
-        const res = t.takeHit(p.x);
+      if (dx > 0 && dx < reach && dy < arcHalf) {
+        let res = t.takeHit(p.x);
+        if (res !== 'dead' && stage === 3) res = t.takeHit(p.x); // finisher bites twice
         anyHit = true;
         this.slashFeedback(t, res === 'dead');
         if (res === 'dead') {
@@ -796,7 +816,7 @@ export default class Level22Scene extends Phaser.Scene {
         ease: 'Quad.easeOut',
       });
     } else if (anyHit) {
-      this.hitstopUntil = now + AUG_TUNE.hitstopMs;
+      this.hitstopUntil = now + (stage === 3 ? AUG_TUNE.hitstopMs * 1.6 : AUG_TUNE.hitstopMs);
     }
   }
 
@@ -1350,14 +1370,18 @@ export default class Level22Scene extends Phaser.Scene {
     const ep = this.ernest.p;
 
     if (this.ernestState === 'approach') {
-      // Clumsy but relentless: hop — fall — get up — hop.
+      // Clumsy but relentless: hop — hop — hop. A rare smooth stumble, never
+      // twice running, never on the first hops (read as character, not glitch).
       if (ep.grounded) {
         if (now >= this.ernestHopAt) {
           ep.grounded = false;
           ep.vy = -340;
           ep.vx = (p.x < ep.x ? -1 : 1) * 120;
           this.ernestHopAt = now + Phaser.Math.Between(480, 760);
-          this.ernestStumble = Math.random() < 0.3;
+          this.ernestHops = (this.ernestHops || 0) + 1;
+          this.ernestStumble =
+            this.ernestHops > 2 && !this.ernestStumbledLast && Math.random() < 0.12;
+          this.ernestStumbledLast = this.ernestStumble;
         }
       } else {
         ep.vy += AUG_TUNE.gravity * dt;
@@ -1370,12 +1394,24 @@ export default class Level22Scene extends Phaser.Scene {
           ep.grounded = true;
           ep.vx = 0;
           if (this.ernestStumble) {
-            // falls over, takes a moment, gets back up
-            this.ernest.fig.setRotation(-Math.PI / 2 * this.ernest.facing);
-            this.ernestHopAt = now + 750;
+            // knees buckle, he catches himself, gets back up — one motion
+            // (rotation only: animate() owns fig position every frame)
+            this.ernestStumble = false;
             synthThud(this, { freq: 100, gain: 0.12, dur: 0.2 });
-            this.time.delayedCall(700, () => {
-              if (this.ernest && this.ernest.alive) this.ernest.fig.setRotation(0);
+            const fig = this.ernest.fig;
+            this.tweens.add({
+              targets: fig,
+              rotation: -0.5 * this.ernest.facing,
+              duration: 160,
+              ease: 'Quad.easeOut',
+              onComplete: () =>
+                this.tweens.add({
+                  targets: fig,
+                  rotation: 0,
+                  duration: 420,
+                  delay: 380,
+                  ease: 'Back.easeOut',
+                }),
             });
           }
         }

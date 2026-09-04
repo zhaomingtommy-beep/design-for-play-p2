@@ -356,31 +356,39 @@ export default class Level21Scene extends Phaser.Scene {
         x: 620,
         y: 200,
         sf: 0.42,
-        color: '#b03036',
+        color: '#ff5560',
         glow: 0xb03036,
         lines: 'PAIN IS FAULT\nFLESH IS PRISON\nUPGRADE IS FREEDOM',
-        size: 17,
+        size: 22,
       },
       {
         x: 1620,
         y: 170,
         sf: 0.5,
-        color: '#27e0f5',
+        color: '#6ff0ff',
         glow: 0x27e0f5,
         lines: 'Still enduring your body?\nYou are not alone. Soon, no one will have to.\n— REFERENDUM RESULT: 81.4% IN FAVOR —',
-        size: 12,
+        size: 14,
       },
       {
         x: 2420,
         y: 130,
         sf: 0.55,
-        color: '#ff2d78',
+        color: '#ff6ba0',
         glow: 0xff2d78,
-        lines: 'RESIDUAL REGISTRY REMINDER: 90 DAYS REMAINING',
-        size: 12,
+        lines: 'RESIDUAL REGISTRY REMINDER:\n90 DAYS REMAINING',
+        size: 14,
       },
     ];
     for (const b of boards) {
+      // Dark glass plate first — the letters need something black to burn against.
+      const w = Math.max(...b.lines.split('\n').map((l) => l.length)) * b.size * 0.62 + 36;
+      const h = b.lines.split('\n').length * b.size * 1.35 + 28;
+      const plate = this.add
+        .rectangle(b.x, b.y, w, h, 0x05070c, 0.88)
+        .setStrokeStyle(1, b.glow, 0.6)
+        .setScrollFactor(b.sf)
+        .setDepth(1.9);
       const txt = this.add
         .text(b.x, b.y, b.lines, {
           fontFamily: 'ui-monospace, Menlo, monospace',
@@ -390,24 +398,31 @@ export default class Level21Scene extends Phaser.Scene {
         })
         .setOrigin(0.5)
         .setScrollFactor(b.sf)
-        .setDepth(2)
-        .setAlpha(0.8);
+        .setDepth(2);
       const glow = this.add
         .image(b.x, b.y, 'ch2-mote')
-        .setScale(30, 8)
+        .setScale(w / 8, h / 4)
         .setTint(b.glow)
-        .setAlpha(0.06)
+        .setAlpha(0.14)
         .setBlendMode(Phaser.BlendModes.ADD)
         .setScrollFactor(b.sf)
-        .setDepth(1);
-      // Holo flicker: cheap and nervous.
+        .setDepth(1.8);
+      // Holo flicker: the hardware glitches, the message never goes out.
       this.tweens.add({
-        targets: [txt, glow],
-        alpha: { from: txt.alpha, to: 0.3 },
+        targets: [plate, glow],
+        alpha: { from: plate.alpha, to: 0.55 },
         duration: 70,
         yoyo: true,
         repeat: -1,
         repeatDelay: 1800 + Math.random() * 2200,
+      });
+      this.tweens.add({
+        targets: txt,
+        alpha: { from: 1, to: 0.85 },
+        duration: 70,
+        yoyo: true,
+        repeat: -1,
+        repeatDelay: 2600 + Math.random() * 2600,
       });
     }
   }
@@ -438,8 +453,8 @@ export default class Level21Scene extends Phaser.Scene {
       const txt = this.add
         .text(t.x, WALK.ground - 120, '', {
           fontFamily: 'ui-monospace, Menlo, monospace',
-          fontSize: '12px',
-          color: '#2fbf71',
+          fontSize: '13px',
+          color: '#5ce894',
           align: 'center',
         })
         .setOrigin(0.5, 1)
@@ -605,6 +620,9 @@ export default class Level21Scene extends Phaser.Scene {
       legL: this.add.image(30, -4, 'ch2-hu-leg').setRotation(Math.PI / 2 + 0.08).setOrigin(0.5, 0.05),
       legR: this.add.image(31, 6, 'ch2-hu-leg').setRotation(Math.PI / 2 - 0.06).setOrigin(0.5, 0.05),
     };
+    // Under the surgical light he is pale flesh, not a rooftop silhouette —
+    // the player must SEE the limbs leave the table.
+    Object.values(this.lyingParts).forEach((img) => img.setTint(0xd8c0b4).setScale(1.7));
     this.lying.add(Object.values(this.lyingParts));
 
     // Blood pool spreading across the table, grows with every cut.
@@ -783,6 +801,8 @@ export default class Level21Scene extends Phaser.Scene {
             .image(this.lying.x + part.x, this.lying.y + part.y, part.texture.key)
             .setOrigin(part.originX, part.originY)
             .setRotation(part.rotation)
+            .setTint(0xd8c0b4)
+            .setScale(1.7)
             .setDepth(6);
           this.tweens.add({
             targets: drop,
@@ -826,7 +846,7 @@ export default class Level21Scene extends Phaser.Scene {
             duration: 900,
             ease: 'Quad.easeOut',
           });
-          this.tweens.add({ targets: this.orLight, alpha: 0.16, duration: 1200 });
+          this.tweens.add({ targets: this.orLight, alpha: 0.5, duration: 1200 });
         },
       },
       { at: 1400, fn: () => this.typeText(this.csText, 'AI bridge status: READY.', 24) },
@@ -836,12 +856,21 @@ export default class Level21Scene extends Phaser.Scene {
       { at: 13200, fn: () => cutLimb(2) },
       { at: 17200, fn: () => cutLimb(3) },
       {
-        at: 21200,
+        at: 19400,
+        fn: () =>
+          this.typeText(
+            this.csText,
+            'EXCISION COMPLETE — residual mass: 31.4 kg.\nYour shell awaits at the discharge tray.',
+            22,
+          ),
+      },
+      {
+        at: 23000,
         fn: () => this.typeText(this.csText, 'AI bridge: CONNECTED.\n\nHello.', 20),
       },
-      { at: 24800, fn: () => this.csExplosion() },
-      { at: 27600, fn: () => this.csRumble() },
-      { at: 30600, fn: () => this.csFloorDrops() },
+      { at: 26600, fn: () => this.csExplosion() },
+      { at: 29400, fn: () => this.csRumble() },
+      { at: 32400, fn: () => this.csFloorDrops() },
     ];
   }
 
@@ -878,9 +907,19 @@ export default class Level21Scene extends Phaser.Scene {
       ease: 'Quad.easeOut',
     });
 
-    // The cold thing arcs away into the dark.
+    // The cold thing arcs away into the dark — tagged, so the player knows
+    // exactly WHAT just left the building: the body they were promised.
     const px = this.orProsthetic.x;
     const py = this.orProsthetic.y;
+    const tag = this.add
+      .text(px, py - 34, 'UNIT 8 — YOUR SHELL', {
+        fontFamily: 'ui-monospace, Menlo, monospace',
+        fontSize: '13px',
+        color: '#9fd8e8',
+      })
+      .setOrigin(0.5)
+      .setDepth(7);
+    this.vessel.say('That was yours. Retrieve it.');
     this.tweens.addCounter({
       from: 0,
       to: 1,
@@ -891,8 +930,13 @@ export default class Level21Scene extends Phaser.Scene {
         this.orProsthetic.setPosition(px + 900 * u, py - 260 * u + 900 * u * u);
         this.orProsthetic.setRotation(u * 9);
         this.orProsthetic.setAlpha(1 - u * 0.6);
+        tag.setPosition(px + 900 * u, py - 34 - 260 * u + 900 * u * u);
+        tag.setAlpha(1 - u * 0.85);
       },
-      onComplete: () => this.orProsthetic.setVisible(false),
+      onComplete: () => {
+        this.orProsthetic.setVisible(false);
+        tag.destroy();
+      },
     });
 
     // Debris burst.
@@ -1022,6 +1066,11 @@ export default class Level21Scene extends Phaser.Scene {
 
     this.enterRollPhase(field, ROLL1.spawn, { x: 0, y: 1350, w: 3150, h: 1500 },
       'A/D — roll · SPACE — shoulder hop · the fall is the only way out');
+    // One last overlay whisper, so the player names what they are now.
+    this.typeText(this.csText, '— what is left of you.', 22);
+    this.time.delayedCall(3600, () => {
+      if (this.csText.active) this.tweens.add({ targets: this.csText, alpha: 0, duration: 900 });
+    });
   }
 
   buildRoll1Backdrop() {
