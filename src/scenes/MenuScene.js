@@ -90,7 +90,7 @@ export default class MenuScene extends Phaser.Scene {
 
     // One continuous chapter — the three forms are not separate levels.
     this.add
-      .text(GAME_W / 2, 408, 'L2-1 切除  →  L2-2 拼接  →  L2-3 过载', {
+      .text(GAME_W / 2, 408, 'L2-1 EXCISION  →  L2-2 ASSEMBLY  →  L2-3 OVERLOAD', {
         fontFamily: 'ui-monospace, Menlo, monospace',
         fontSize: '12px',
         color: '#3f4a56',

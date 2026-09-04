@@ -1,20 +1,24 @@
 import Phaser from 'phaser';
 import { GAME_W, GAME_H } from '../../constants.js';
-import { synthThud, synthBuzz } from './torso.js';
+import { makeTorsoTextures, synthThud, synthBuzz } from './torso.js';
 
 /**
  * IntroCh2 — the cold open of Chapter 2 (story bible docs/chapter2-story.md).
+ * All in-game copy is English per project rule.
  *
- * Six beats, one unbroken black room; the world is explained by its own
+ * Seven beats, one unbroken black room; the world is explained by its own
  * paperwork. INSIDE's wordless vignettes + Disco Elysium's wry second-person
- * narrator (the 「——」 lines at the bottom):
+ * narrator (the "—" lines at the bottom):
  *
  *   1. BIOS       VESSEL boots; the log itself admits words have been deleted
  *   2. VOTE       the referendum ad: nobody forced anyone — 81.4% voted yes
- *   3. NEWSPEAK   疼痛 / 死亡 / 我 are struck from the dictionary, live
- *   4. CONSENT    the triplicate form signs itself; the VOUNTARY stamp slams
+ *   3. NEWSPEAK   PAIN / DEATH / I are struck from the dictionary, live
+ *   4. CONSENT    the triplicate form signs itself; the VOLUNTARY stamp slams
  *   5. SURVEY     the satisfaction survey answers itself — five stars
- *   6. VESSEL     "早上好，8 号公民。"
+ *   6. VESSEL     the civic terminal addresses Citizen 8 — who speaks, and
+ *                 from where, is now on screen
+ *   7. THE WALK   a silhouette walks into the clinic's cold light — the SAME
+ *                 silhouette L2-1 opens on. The cut is a match, not a jump.
  *
  * Any ENTER/SPACE skips straight to L2-1. No black-cuts inside: each beat
  * dissolves into the next.
@@ -33,6 +37,7 @@ export default class IntroCh2Scene extends Phaser.Scene {
 
   create() {
     this.cameras.main.setBackgroundColor('#03050a');
+    makeTorsoTextures(this); // ch2-mote, for light spills
     this.events = [];
     this.beat = []; // live objects of the current beat
     this.done = false;
@@ -49,7 +54,7 @@ export default class IntroCh2Scene extends Phaser.Scene {
       .setDepth(20);
 
     this.add
-      .text(GAME_W - 18, GAME_H - 20, 'ENTER / SPACE —— 跳过', {
+      .text(GAME_W - 18, GAME_H - 20, 'ENTER / SPACE — skip', {
         fontFamily: MONO,
         fontSize: '11px',
         color: '#3f4a56',
@@ -70,7 +75,8 @@ export default class IntroCh2Scene extends Phaser.Scene {
     this.schedule(29800, () => this.beatConsent());
     this.schedule(40800, () => this.beatSurvey());
     this.schedule(48800, () => this.beatVessel());
-    this.schedule(55500, () => this.finish());
+    this.schedule(56500, () => this.beatWalk());
+    this.schedule(63500, () => this.finish());
   }
 
   // ------------------------------------------------------------- scaffolding
@@ -124,9 +130,12 @@ export default class IntroCh2Scene extends Phaser.Scene {
     this.typewrite(this.narration, str, cps);
   }
 
-  line(x, y, str, { size = 15, color = C_MAIN, origin = 0 } = {}) {
+  line(x, y, str, { size = 15, color = C_MAIN, origin = 0, depth = 6 } = {}) {
     return this.own(
-      this.add.text(x, y, '', { fontFamily: MONO, fontSize: `${size}px`, color }).setOrigin(origin, 0),
+      this.add
+        .text(x, y, '', { fontFamily: MONO, fontSize: `${size}px`, color })
+        .setOrigin(origin, 0)
+        .setDepth(depth),
     );
   }
 
@@ -163,13 +172,13 @@ export default class IntroCh2Scene extends Phaser.Scene {
 
   beatBios() {
     const lines = [
-      ['NIGHTFALL INDUSTRIES —— VESSEL BIOS v7.3.1', C_CYAN],
-      ['公民终端自检 ................ OK', C_MAIN],
-      ['神经桥接 .................... OK', C_MAIN],
-      ['疼痛响应 .................... [已弃用]', C_DIM],
-      ['词汇表校验 .................. 3 词已归档', C_DIM],
-      ['载入协议：《身体责任法案》§7.3 —— 躯体为公共资源', C_MAIN],
-      ['迁移日志检索中 ……', C_MAIN],
+      ['NIGHTFALL INDUSTRIES — VESSEL BIOS v7.3.1', C_CYAN],
+      ['civic terminal self-check ..... OK', C_MAIN],
+      ['neural bridge ................ OK', C_MAIN],
+      ['pain response ............... [deprecated]', C_DIM],
+      ['lexicon audit ............... 3 words archived', C_DIM],
+      ['loading statute: BODY RESPONSIBILITY ACT §7.3 — the body is public resource', C_MAIN],
+      ['retrieving migration log …', C_MAIN],
     ];
     lines.forEach(([str, color], i) => {
       const txt = this.line(90, 120 + i * 36, '', { color });
@@ -178,7 +187,7 @@ export default class IntroCh2Scene extends Phaser.Scene {
         synthBuzz(this, { freq: 240 + i * 30, dur: 0.06, gain: 0.05 });
       });
     });
-    this.rel(900, () => this.narrate('—— 机器醒来的时候，你还没有。这是故意的。'));
+    this.rel(900, () => this.narrate('— the machine wakes before you do. that is deliberate.'));
   }
 
   // ------------------------------------------------------------ beat 2: VOTE
@@ -205,7 +214,7 @@ export default class IntroCh2Scene extends Phaser.Scene {
     g.fillRect(tvX + 164, tvY + 128, 34, 10); // hand pressed to the back
 
     const headline = this.line(GAME_W / 2, 380, '', { size: 22, color: C_MAIN, origin: 0.5 });
-    this.rel(300, () => this.typewrite(headline, '你还在忍受身体吗？', 24));
+    this.rel(300, () => this.typewrite(headline, 'Still enduring your body?', 24));
 
     // The vote bar climbs by itself.
     const barBg = this.own(
@@ -232,9 +241,9 @@ export default class IntroCh2Scene extends Phaser.Scene {
     });
     this.rel(2300, () => {
       const lab = this.line(GAME_W / 2, 462, '', { size: 12, color: C_DIM, origin: 0.5 });
-      this.typewrite(lab, '《身体责任法案》公投 · 实时 · 赞成', 40);
+      this.typewrite(lab, 'BODY RESPONSIBILITY ACT — REFERENDUM · LIVE · IN FAVOR', 40);
     });
-    this.rel(1000, () => this.narrate('—— 你没有投票。没关系。大多数人替你决定了。'));
+    this.rel(1000, () => this.narrate("— you didn't vote. it didn't matter. the majority decided for you."));
   }
 
   // -------------------------------------------------------- beat 3: NEWSPEAK
@@ -243,34 +252,34 @@ export default class IntroCh2Scene extends Phaser.Scene {
     this.clearBeat();
     // Three words are struck from the dictionary while you watch.
     const rows = [
-      ['疼痛', '故障反馈'],
-      ['死亡', '迁移'],
-      ['我', '本单元'],
+      ['PAIN', 'FAULT FEEDBACK'],
+      ['DEATH', 'MIGRATION'],
+      ['I', 'THE UNIT'],
     ];
     rows.forEach(([oldW, newW], i) => {
       const y = 150 + i * 74;
       const oldT = this.own(
         this.add
-          .text(GAME_W / 2 - 130, y, oldW, { fontFamily: MONO, fontSize: '26px', color: C_MAIN })
+          .text(GAME_W / 2 - 170, y, oldW, { fontFamily: MONO, fontSize: '26px', color: C_MAIN })
           .setOrigin(0.5),
       );
       const strike = this.own(
-        this.add.rectangle(GAME_W / 2 - 130, y + 1, 0, 3, 0xb03036).setDepth(6),
+        this.add.rectangle(GAME_W / 2 - 170, y + 1, 0, 3, 0xb03036).setDepth(6),
       );
       const arrow = this.own(
         this.add
-          .text(GAME_W / 2 - 40, y, '→', { fontFamily: MONO, fontSize: '20px', color: C_DIM })
+          .text(GAME_W / 2 - 60, y, '→', { fontFamily: MONO, fontSize: '20px', color: C_DIM })
           .setOrigin(0.5)
           .setAlpha(0),
       );
       const newT = this.own(
         this.add
-          .text(GAME_W / 2 + 90, y, newW, { fontFamily: MONO, fontSize: '22px', color: C_CYAN })
+          .text(GAME_W / 2 + 110, y, newW, { fontFamily: MONO, fontSize: '22px', color: C_CYAN })
           .setOrigin(0.5)
           .setAlpha(0),
       );
       this.rel(800 + i * 1600, () => {
-        this.tweens.add({ targets: strike, width: 96, duration: 320, ease: 'Quad.easeIn' });
+        this.tweens.add({ targets: strike, width: Math.max(60, oldW.length * 30), duration: 320, ease: 'Quad.easeIn' });
         synthBuzz(this, { freq: 140, dur: 0.2, gain: 0.12 });
         oldT.setColor(C_DIM);
       });
@@ -281,11 +290,11 @@ export default class IntroCh2Scene extends Phaser.Scene {
     });
     const slogan = this.line(GAME_W / 2, 420, '', { size: 18, color: C_RED, origin: 0.5 });
     this.rel(6200, () => {
-      this.typewrite(slogan, '疼痛即故障 · 肉身即牢笼 · 升级即自由', 26);
+      this.typewrite(slogan, 'PAIN IS FAULT · FLESH IS PRISON · UPGRADE IS FREEDOM', 26);
       synthBuzz(this, { freq: 100, dur: 0.5, gain: 0.12 });
     });
     this.rel(900, () =>
-      this.narrate('—— 他们先从词典里删掉了这些词。然后才轮到你的身体。'),
+      this.narrate('— they deleted these words from the dictionary first. then they came for your body.'),
     );
   }
 
@@ -303,10 +312,10 @@ export default class IntroCh2Scene extends Phaser.Scene {
     for (let y = py + 96; y < py + 250; y += 26) g.lineBetween(px + 26, y, px + 314, y);
 
     const title = this.line(GAME_W / 2, py + 18, '', { size: 17, color: C_MAIN, origin: 0.5 });
-    this.rel(200, () => this.typewrite(title, '自愿切除确认书 · 三联单', 34));
+    this.rel(200, () => this.typewrite(title, 'VOLUNTARY EXCISION CONSENT · TRIPLICATE', 34));
     const note = this.line(GAME_W / 2, py + 52, '', { size: 11, color: C_DIM, origin: 0.5 });
     this.rel(1100, () =>
-      this.typewrite(note, '（白色联：患者留存 —— 尽管您将不再拥有手）', 40),
+      this.typewrite(note, '(white copy: patient keeps — though you will no longer have hands)', 40),
     );
 
     // The signature draws itself, pen gliding on its own.
@@ -328,6 +337,10 @@ export default class IntroCh2Scene extends Phaser.Scene {
         delay: 34,
         repeat: sigPts.length - 2,
         callback: () => {
+          if (!sig.active) {
+            timer.remove();
+            return;
+          }
           drawn++;
           sig.lineStyle(2, 0x9fb4c4, 0.9);
           sig.lineBetween(sigPts[drawn - 1].x, sigPts[drawn - 1].y, sigPts[drawn].x, sigPts[drawn].y);
@@ -337,13 +350,13 @@ export default class IntroCh2Scene extends Phaser.Scene {
       this.timers.push(timer);
     });
 
-    // The stamp slams: 自愿. This is the sound of the whole world.
+    // The stamp slams: VOLUNTARY. This is the sound of the whole world.
     this.rel(4400, () => {
       const stamp = this.own(
         this.add
-          .text(GAME_W / 2 + 84, py + 210, '自 愿', {
+          .text(GAME_W / 2 + 60, py + 210, 'VOLUNTARY', {
             fontFamily: MONO,
-            fontSize: '30px',
+            fontSize: '22px',
             color: C_RED,
           })
           .setOrigin(0.5)
@@ -352,7 +365,7 @@ export default class IntroCh2Scene extends Phaser.Scene {
       );
       const frame = this.own(
         this.add
-          .rectangle(GAME_W / 2 + 84, py + 210, 96, 52)
+          .rectangle(GAME_W / 2 + 60, py + 210, 150, 46)
           .setStrokeStyle(3, 0xb03036, 0.9)
           .setScale(3)
           .setAlpha(0)
@@ -372,7 +385,7 @@ export default class IntroCh2Scene extends Phaser.Scene {
       });
     });
     this.rel(900, () =>
-      this.narrate('—— 三份。一份给公司，一份给政府，一份给你。尽管你即将没有手来拿它。'),
+      this.narrate("— three copies. one for the company, one for the state, one for you. though you won't have hands to hold it."),
     );
   }
 
@@ -381,7 +394,7 @@ export default class IntroCh2Scene extends Phaser.Scene {
   beatSurvey() {
     this.clearBeat();
     const q = this.line(GAME_W / 2, 180, '', { size: 18, color: C_MAIN, origin: 0.5 });
-    this.rel(200, () => this.typewrite(q, '请为本次升级体验打分', 34));
+    this.rel(200, () => this.typewrite(q, 'Please rate your upgrade experience', 34));
 
     // Five star outlines, drawn — no font glyphs to trust.
     const stars = [];
@@ -405,6 +418,7 @@ export default class IntroCh2Scene extends Phaser.Scene {
           synthBuzz(this, { freq: 320, dur: 0.08, gain: 0.08 });
           stars.forEach((sg, i) => {
             this.time.delayedCall(i * 160, () => {
+              if (!sg.active) return;
               sg.clear();
               this.drawStar(sg, GAME_W / 2 - 120 + i * 60, 280, 18, true);
               synthBuzz(this, { freq: 380 + i * 60, dur: 0.07, gain: 0.07 });
@@ -414,10 +428,8 @@ export default class IntroCh2Scene extends Phaser.Scene {
       });
     });
     const cap = this.line(GAME_W / 2, 340, '', { size: 12, color: C_DIM, origin: 0.5 });
-    this.rel(3800, () => this.typewrite(cap, '（本单元默认满分）', 40));
-    this.rel(900, () =>
-      this.narrate('—— 调查在你回答之前就已经结束了。从来如此。'),
-    );
+    this.rel(3800, () => this.typewrite(cap, '(the unit defaults to five stars)', 40));
+    this.rel(900, () => this.narrate('— the survey ended before you answered. it always does.'));
   }
 
   drawStar(g, x, y, r, filled) {
@@ -441,12 +453,88 @@ export default class IntroCh2Scene extends Phaser.Scene {
   beatVessel() {
     this.clearBeat();
     this.narration.setText('');
-    const hello = this.line(GAME_W / 2, 240, '', { size: 24, color: C_CYAN, origin: 0.5 });
-    this.rel(500, () => {
-      this.typewrite(hello, '早上好，8 号公民。', 18);
+    // Who is speaking, and from where: the civic terminal in your kitchen,
+    // on the last morning. The frame makes the voice a THING with an address.
+    const g = this.own(this.add.graphics().setDepth(5));
+    const mx = GAME_W / 2 - 260;
+    const my = 150;
+    g.fillStyle(0x0a0e16, 1).fillRect(mx - 12, my - 34, 544, 224);
+    g.lineStyle(2, 0x39424e, 1).strokeRect(mx - 12, my - 34, 544, 224);
+    g.fillStyle(0x0d1420, 1).fillRect(mx, my - 22, 520, 200);
+    const tag = this.own(
+      this.add
+        .text(mx + 8, my - 32, 'VESSEL · CIVIC TERMINAL — NEURAL BRIDGE PREVIEW', {
+          fontFamily: MONO,
+          fontSize: '11px',
+          color: C_DIM,
+        })
+        .setDepth(6),
+    );
+    const hello = this.line(GAME_W / 2, my + 30, '', { size: 24, color: C_CYAN, origin: 0.5 });
+    this.rel(700, () => {
+      this.typewrite(hello, 'Good morning, Citizen 8.', 18);
       synthBuzz(this, { freq: 260, dur: 0.3, gain: 0.1 });
     });
-    const sub = this.line(GAME_W / 2, 300, '', { size: 14, color: C_DIM, origin: 0.5 });
-    this.rel(2600, () => this.typewrite(sub, '今天是你最后一次拥有身体。让我们开始吧。', 22));
+    const sub = this.line(GAME_W / 2, my + 90, '', { size: 14, color: C_DIM, origin: 0.5 });
+    this.rel(2900, () =>
+      this.typewrite(sub, 'Today is the last day you own your body. Report to Clinic 7 by 06:00.', 26),
+    );
+    this.rel(900, () =>
+      this.narrate('— the voice does not come from the screen. it comes from behind your eyes. it has been there since the bridge test.'),
+    );
+  }
+
+  // ---------------------------------------------------------- beat 7: WALK
+
+  beatWalk() {
+    this.clearBeat();
+    // The bridge into L2-1: the same dark silhouette the game opens on,
+    // walking into the clinic's cold light. This is WHERE the rooftop is.
+    const cap = this.line(GAME_W / 2, 96, '', { size: 15, color: C_MAIN, origin: 0.5 });
+    this.rel(300, () => this.typewrite(cap, 'CLINIC 7 — ROOFTOP INTAKE · 05:58', 30));
+
+    // Ground line + the cold door on the right.
+    const g = this.own(this.add.graphics().setDepth(5));
+    g.lineStyle(2, 0x3a4a5c, 1);
+    g.lineBetween(0, 430, GAME_W, 430);
+    const doorX = GAME_W - 220;
+    g.lineStyle(2, 0x9fd8e8, 0.9);
+    g.strokeRect(doorX, 300, 70, 130);
+    const spill = this.own(
+      this.add
+        .image(doorX + 35, 365, 'ch2-mote')
+        .setScale(12, 18)
+        .setTint(0x9fd8e8)
+        .setAlpha(0.14)
+        .setBlendMode(Phaser.BlendModes.ADD)
+        .setDepth(4),
+    );
+    this.tweens.add({ targets: spill, alpha: 0.3, duration: 1500, yoyo: true, repeat: -1 });
+
+    // The walker: same minimal silhouette L2-1 uses (dark body, one cold rim).
+    const walker = this.own(this.add.container(120, 430).setDepth(6));
+    const wBody = this.add.rectangle(0, -34, 16, 34, 0x232b36);
+    const wHead = this.add.circle(2, -58, 8, 0x232b36);
+    const wRim = this.add.rectangle(-7, -34, 1.5, 30, 0x7fd4e8).setAlpha(0.5);
+    const wLegL = this.add.rectangle(-4, -12, 5, 24, 0x232b36);
+    const wLegR = this.add.rectangle(4, -12, 5, 24, 0x232b36);
+    walker.add([wLegL, wLegR, wBody, wRim, wHead]);
+
+    // He walks. The legs trade steps; the camera does not move — HE does.
+    this.tweens.add({ targets: wLegL, angle: 18, duration: 260, yoyo: true, repeat: -1 });
+    this.tweens.add({ targets: wLegR, angle: -18, duration: 260, yoyo: true, repeat: -1, delay: 260 });
+    this.rel(600, () => {
+      this.tweens.add({
+        targets: walker,
+        x: doorX + 35,
+        duration: 4600,
+        ease: 'Linear',
+        onComplete: () => {
+          // Into the light. The next frame of the story is L2-1's rooftop.
+          this.tweens.add({ targets: walker, alpha: 0, duration: 500 });
+        },
+      });
+    });
+    this.rel(900, () => this.narrate('— the walk is short. you will not walk back.'));
   }
 }

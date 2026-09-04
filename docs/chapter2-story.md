@@ -2,6 +2,7 @@
 
 > 本文件是 Chapter 2 叙事层的唯一权威来源。关卡玩法设计见 `chapter2-redesign.md`；
 > 两份文档冲突时，玩法以 redesign 为准，台词/世界观/文案以本文为准。
+> **规则：所有游戏内文案一律使用英文**（本文档为设计讨论语言，中文）。
 
 ---
 
@@ -60,42 +61,42 @@
 
 ## 6. 叙事载体（全部长在玩法里，不堆过场）
 
-1. **IntroCh2（BIOS 冷开场）**：开机自检日志（夹杂删词提示）→ 公投广告 vignette → 新话删除演示 → 三联单签约 → 满意度调查 → VESSEL 醒来。约 45 秒，任意键跳过。风格：INSIDE 的哑剧剪影 + Disco Elysium 的毒舌第二人称旁白。
+1. **IntroCh2（BIOS 冷开场，v3.5 七拍）**：开机自检日志（夹杂删词提示）→ 公投广告 vignette → 新话删除演示 → 三联单签约 → 满意度调查 → VESSEL 醒来（**带终端来源框**：`VESSEL · CIVIC TERMINAL — NEURAL BRIDGE PREVIEW`，回答"谁在说、在哪说"）→ **THE WALK 过渡拍**（字幕 `CLINIC 7 — ROOFTOP INTAKE · 05:58`，与 L2-1 同款的黑色剪影走进冷光门——match-cut 进 L2-1 屋顶，回答"开场那个人是谁、在哪"）。约 63 秒，任意键跳过。风格：INSIDE 的哑剧剪影 + Disco Elysium 的毒舌第二人称旁白。
 2. **环境叙事**：L2-1 走廊广告屏/宣传屏（文案见 §7）、空手术舱、病历屏。
 3. **VESSEL 随行台词**：每关 5–8 行字幕式语音，语气按 §5 演变（实现排期见 §9）。
 4. **Ernest 事件**：已有；诗前后各加一行 VESSEL 反应（见 §8）。
-5. **结尾**：字幕已有；END 屏追加新闻通稿体一行：「NIGHTFALL 公报：8 号公民升级仪式圆满成功。个体化进程零事故。残余者事务部提醒：升级窗口仍在开放。」
+5. **结尾**：字幕已有；END 屏追加新闻通稿体一行：`NIGHTFALL BULLETIN: Citizen 8's upgrade ceremony concluded with zero incidents. The Residual Affairs Office reminds you: the upgrade window remains open.`
 
-## 7. 环境文案清单
+## 7. 环境文案清单（游戏内一律英文）
 
 ### L2-1（霓虹高楼 / 实验室）
-- 「疼痛即故障 · 肉身即牢笼 · 升级即自由」（三联标语，主墙）
-- 「上一次你为身体投票是什么时候？」（广告屏）
-- 「残余者登记处提醒您：最后期限 90 天」
-- 「COMPLETE YOURSELF —— 做一个完整的公民」
-- 「你还在忍受身体吗？你不是一个人。很快，没有人需要是。」（公投广告回放）
-- 手术同意书三联单：「自愿切除确认（白色联：患者留存——尽管您将不再拥有手）」
-- 术中弹出：「请为本次切除体验打分（1–5）」
+- `PAIN IS FAULT · FLESH IS PRISON · UPGRADE IS FREEDOM`（三联标语，主墙）
+- `When did you last vote for your body?`（广告屏）
+- `RESIDUAL REGISTRY REMINDER: 90 days remaining`（残余者登记处）
+- `COMPLETE YOURSELF — become a complete citizen`
+- `Still enduring your body? You are not alone. Soon, no one will have to.`（公投广告回放）
+- 手术同意书三联单：`VOLUNTARY EXCISION CONSENT (white copy: patient keeps — though you will no longer have hands)`
+- 术中弹出：`Please rate your excision experience (1–5)`
 
 ### L2-2（地下）
-- 「赛博精神病 Ⅲ 期 · 建议强制收治」（通缉屏）
-- 「异常者清除 · 直播 · 当前收视 2.1M」
-- 墙上涂鸦（残余者手写，唯一手写体）：「他们还叫这是病」
+- `CYBERPSYCHOSIS STAGE III — MANDATORY INTAKE RECOMMENDED`（通缉屏）
+- `ANOMALY CULL · LIVE · 2.1M WATCHING`（直播屏）
+- 墙上涂鸦（残余者手写，唯一手写体）：`they still call it a disease`
 
 ### L2-3（地表）
-- 晨雾中巨大的全息公投纪念碑：「81.4% —— 多数人的意志」
+- 晨雾中巨大的全息公投纪念碑：`81.4% — THE WILL OF THE MAJORITY`
 - 坑边只有 `DETONATE: press F in mid-air`（系统连反抗都写成操作手册）
 
 ## 8. Ernest 事件的 VESSEL 反应（增补）
 
-- Ernest 开始念诗时，VESSEL：「违禁文本。建议屏蔽。」（它第一次显得**害怕**）
-- Ernest 离开后，VESSEL：「……本单元检索不到刚才那 12 秒。请报告你听到了什么。」（删词政权连 AI 的记忆都在删——而它注意到了）
+- Ernest 开始念诗时，VESSEL：`Prohibited text. Muting recommended.`（它第一次显得**害怕**）
+- Ernest 离开后，VESSEL：`…the unit cannot retrieve the last 12 seconds. Report what you heard.`（删词政权连 AI 的记忆都在删——而它注意到了）
 
 ## 9. 实现状态
 
 | 项目 | 状态 |
 |---|---|
-| IntroCh2 BIOS 冷开场 | ✅ v3.4 已实现（`src/chapters/ch2/IntroCh2Scene.js`） |
+| IntroCh2 冷开场（七拍，全英文案，VESSEL 来源框 + WALK 过渡拍） | ✅ v3.5 已实现（`src/chapters/ch2/IntroCh2Scene.js`） |
 | 菜单 BEGIN → IntroCh2 → L2-1 接线 | ✅ v3.4 |
 | L2-1 宣传屏/广告屏文案 | ⬜ 待做 |
 | VESSEL 分关随行台词 | ⬜ 待做 |
