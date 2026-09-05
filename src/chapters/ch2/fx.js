@@ -77,6 +77,25 @@ export function makeFxTextures(scene) {
     g.clear();
   }
 
+  // Gore chunk: a jagged irregular morsel — tintable meat and scrap.
+  {
+    g.fillStyle(0xffffff, 1);
+    g.beginPath();
+    const pts = 9;
+    for (let i = 0; i <= pts; i++) {
+      const a = (i / pts) * Math.PI * 2;
+      const r = 20 + ((i * 37) % 13);
+      const px = 32 + Math.cos(a) * r;
+      const py = 32 + Math.sin(a) * r * 0.8;
+      if (i === 0) g.moveTo(px, py);
+      else g.lineTo(px, py);
+    }
+    g.closePath();
+    g.fillPath();
+    g.generateTexture('ch2-fx-chunk', 64, 64);
+    g.clear();
+  }
+
   g.destroy();
 }
 

@@ -1746,6 +1746,48 @@ export default class Level22Scene extends Phaser.Scene {
         })
         .setDepth(6)
         .explode(40);
+      // The frame comes apart: an arm, a leg, a scrap of the parasite arc
+      // out of the burst and tumble back down.
+      ['ch2-aug-arm', 'ch2-aug-leg', 'ch2-shard'].forEach((tex, i) => {
+        const gib = this.add.image(p.x, p.y - 36, tex).setScale(0.4).setDepth(7);
+        const dir = i % 2 ? -1 : 1;
+        this.tweens.add({
+          targets: gib,
+          x: p.x + dir * (90 + i * 60),
+          rotation: dir * (4 + i * 2),
+          duration: 900,
+          ease: 'Quad.easeOut',
+        });
+        this.tweens.add({
+          targets: gib,
+          y: p.y - 150 - i * 30,
+          duration: 320,
+          ease: 'Quad.easeOut',
+          onComplete: () => {
+            this.tweens.add({
+              targets: gib,
+              y: p.y + 60,
+              alpha: 0,
+              duration: 500,
+              ease: 'Quad.easeIn',
+              onComplete: () => gib.destroy(),
+            });
+          },
+        });
+      });
+      // Death drags time with it — then the zoom punches out.
+      this.slow = 0.2;
+      setTimeout(() => {
+        this.slow = 1;
+      }, 520);
+      this.tweens.add({
+        targets: this.cameras.main,
+        zoom: 1.12,
+        duration: 300,
+        hold: 200,
+        yoyo: true,
+        ease: 'Quad.easeOut',
+      });
       this.time.delayedCall(650, () => this.whipBack(() => this.respawn()));
     }
   }

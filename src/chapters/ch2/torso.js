@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { GAME_W, GAME_H } from '../../constants.js';
+import { makeFxTextures } from './fx.js';
 
 /**
  * Chapter 2 shared torso kit — everything the limbless body needs, extracted
@@ -535,6 +536,16 @@ export function synthBuzz(scene, { freq = 160, dur = 0.5, gain = 0.16 } = {}) {
  * Without panTo, onRespawn just fires after the gore beat.
  */
 export function playVoidDeath(scene, onRespawn, { panTo = null } = {}) {
+  makeFxTextures(scene);
+  // The world lurches: a beat of slow motion while the gore reads.
+  const hadSlow = typeof scene.slow === 'number';
+  if (hadSlow) scene.slow = 0.25;
+  scene.time.delayedCall(520, () => {
+    if (hadSlow) scene.slow = 1;
+  });
+  scene.cameras.main.shake(180, 0.012);
+
+  // Wave one: the arterial burst, thrown at the lens from below the frame.
   scene.add
     .particles(0, 0, 'ch2-mote', {
       x: { min: 0, max: GAME_W },
@@ -553,8 +564,50 @@ export function playVoidDeath(scene, onRespawn, { panTo = null } = {}) {
     .setDepth(90)
     .explode(70);
 
+  // Wave two: heavy morsels on long parabolic arcs — the ones you watch fall.
+  scene.add
+    .particles(0, 0, 'ch2-fx-chunk', {
+      x: { min: 0, max: GAME_W },
+      y: GAME_H + 16,
+      speedY: { min: -620, max: -240 },
+      speedX: { min: -220, max: 220 },
+      gravityY: 1500,
+      rotate: { start: 0, end: 340 },
+      lifespan: { min: 700, max: 1400 },
+      quantity: 14,
+      scale: { min: 0.5, max: 1.3 },
+      tint: [0x5c1216, 0x8e1f24, 0x3a0d10],
+      emitting: false,
+    })
+    .setScrollFactor(0)
+    .setDepth(91)
+    .explode(14);
+
+  // Blood on the lens itself: streaks that slide down and are slow to fade.
+  for (let i = 0; i < 5; i++) {
+    const dx = 60 + Math.random() * (GAME_W - 120);
+    const drip = scene.add
+      .image(dx, -20, 'ch2-fx-chunk')
+      .setScale(0.8 + Math.random() * 0.9, 2.2 + Math.random() * 2.4)
+      .setTint(0x8e1f24)
+      .setAlpha(0.85)
+      .setScrollFactor(0)
+      .setDepth(92);
+    scene.tweens.add({
+      targets: drip,
+      y: GAME_H * (0.3 + Math.random() * 0.5),
+      alpha: 0,
+      duration: 900 + Math.random() * 700,
+      ease: 'Quad.easeIn',
+      onComplete: () => drip.destroy(),
+    });
+  }
+
   scene.cameras.main.flash(220, 140, 20, 26);
+  // The deeper second pulse — the heart misfiring.
+  scene.time.delayedCall(140, () => scene.cameras.main.flash(300, 90, 10, 14));
   synthThud(scene);
+  synthBuzz(scene, { freq: 55, dur: 0.7, gain: 0.18 });
 
   if (!panTo) {
     scene.time.delayedCall(550, onRespawn);

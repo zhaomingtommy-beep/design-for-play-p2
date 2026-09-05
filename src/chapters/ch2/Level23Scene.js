@@ -1121,6 +1121,25 @@ export default class Level23Scene extends Phaser.Scene {
         })
         .setDepth(6)
         .explode(40);
+      // The shell bursts off — every shard it stole, thrown at once.
+      this.add
+        .particles(p.x, p.y - 50, 'ch2-shard', {
+          speed: { min: 160, max: 520 },
+          gravityY: 1100,
+          rotate: { start: 0, end: 360 },
+          lifespan: { min: 600, max: 1200 },
+          quantity: 12,
+          scale: { min: 0.3, max: 0.7 },
+          emitting: false,
+        })
+        .setDepth(6)
+        .explode(12);
+      // Death drags time down with it.
+      this.slow = 0.2;
+      setTimeout(() => {
+        this.slow = 1;
+      }, 520);
+      this.cameras.main.shake(200, 0.013);
       this.time.delayedCall(650, () => {
         playVoidDeath(this, () => this.respawn(), {
           panTo: { x: L3.spawn.x + 200, y: 380 },
