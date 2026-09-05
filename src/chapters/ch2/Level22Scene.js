@@ -1,9 +1,10 @@
 import Phaser from 'phaser';
 import { GAME_W, GAME_H } from '../../constants.js';
-import { Heightfield, playVoidDeath, synthThud, synthBuzz, makeTorsoTextures } from './torso.js';
+import { Heightfield, playVoidDeath, synthThud, synthBuzz, synthPing, synthWhir, makeTorsoTextures } from './torso.js';
 import { AUG_TUNE, PSY_TUNE, makeAugTextures, AugPlayer, Psycho } from './aug.js';
 import { makeVesselVoice } from './vessel.js';
 import { applyLens, addFogBands, addEmbers, addSteam, addShaft } from './fx.js';
+import { startAmbience } from './ambience.js';
 
 /**
  * L2-2 「拼接」 — THE UPGRADE, level two of three (docs/chapter2-redesign.md §4).
@@ -115,6 +116,7 @@ export default class Level22Scene extends Phaser.Scene {
     this.phase = 'ATTACH';
     makeTorsoTextures(this);
     makeAugTextures(this);
+    startAmbience(this, 'industrial');
 
     this.field = new Heightfield(L2.contour, L2.gaps);
     this.buildBackdrop();
@@ -658,6 +660,7 @@ export default class Level22Scene extends Phaser.Scene {
       this.updateArm(dt, now, input);
     } else {
       const wasDashing = now < this.player.dashUntil;
+      if (input.jump && p.grounded) synthPing(this, { freq: 640, gain: 0.045, dur: 0.09 }); // servo kickoff
       const ev = this.player.step(dt, input, { worldEnd: L2.worldEnd });
       if (ev === 'land') {
         synthThud(this, { freq: 130, gain: 0.18, dur: 0.15 });
@@ -1412,6 +1415,8 @@ export default class Level22Scene extends Phaser.Scene {
       p.grounded = false;
       p.vy = Math.min(p.vy, -280); // he hops into the swing
       synthBuzz(this, { freq: 340, dur: 0.1, gain: 0.1 }); // the claw bites
+      synthPing(this, { freq: 1850, gain: 0.09 }); // steel on steel
+      synthWhir(this, { from: 180, to: 560, dur: 0.45, gain: 0.05 }); // the winch reels
       this.add
         .particles(anchor.x, anchor.y, 'ch2-mote', {
           speed: { min: 40, max: 140 },
@@ -2118,6 +2123,7 @@ export default class Level22Scene extends Phaser.Scene {
     const p = this.player.p;
     const cam = this.cameras.main;
     synthThud(this, { freq: 55, gain: 0.3, dur: 1.6 });
+    synthWhir(this, { from: 70, to: 260, dur: 1.5, gain: 0.07 }); // the lift wakes
     cam.shake(1600, 0.002);
     // Cables and shaft walls streak past, downward.
     const streaks = this.add

@@ -528,6 +528,57 @@ export function synthBuzz(scene, { freq = 160, dur = 0.5, gain = 0.16 } = {}) {
   }
 }
 
+/** Short metallic clink — claw catching steel, a latch, a pin. */
+export function synthPing(scene, { freq = 1700, gain = 0.09, dur = 0.14 } = {}) {
+  try {
+    const ctx = scene.sound.context;
+    const t0 = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(freq, t0);
+    osc.frequency.exponentialRampToValueAtTime(freq * 0.5, t0 + dur);
+    g.gain.setValueAtTime(gain, t0);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+    osc.connect(g).connect(ctx.destination);
+    osc.start(t0);
+    osc.stop(t0 + dur + 0.02);
+    // the click transient on top
+    const click = ctx.createOscillator();
+    const cg = ctx.createGain();
+    click.type = 'square';
+    click.frequency.setValueAtTime(freq * 2.3, t0);
+    cg.gain.setValueAtTime(gain * 0.4, t0);
+    cg.gain.exponentialRampToValueAtTime(0.001, t0 + 0.03);
+    click.connect(cg).connect(ctx.destination);
+    click.start(t0);
+    click.stop(t0 + 0.05);
+  } catch (e) {
+    /* audio locked */
+  }
+}
+
+/** Rising servo whir — the winch reeling you in, the lift waking up. */
+export function synthWhir(scene, { from = 160, to = 520, dur = 0.5, gain = 0.05 } = {}) {
+  try {
+    const ctx = scene.sound.context;
+    const t0 = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(from, t0);
+    osc.frequency.exponentialRampToValueAtTime(to, t0 + dur);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(gain, t0 + dur * 0.2);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+    osc.connect(g).connect(ctx.destination);
+    osc.start(t0);
+    osc.stop(t0 + dur + 0.02);
+  } catch (e) {
+    /* audio locked */
+  }
+}
+
 /**
  * Death by void per design §6: no instant teleport, and NO black cut —
  * the take never breaks. Blood thrown at the lens from below the frame,

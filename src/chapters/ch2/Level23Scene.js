@@ -9,6 +9,7 @@ import {
 } from './torso.js';
 import { makeAugTextures, Psycho } from './aug.js';
 import { applyLens, addFogBands, addEmbers } from './fx.js';
+import { startAmbience } from './ambience.js';
 import { makeVesselVoice } from './vessel.js';
 
 /**
@@ -296,6 +297,7 @@ export default class Level23Scene extends Phaser.Scene {
     makeTorsoTextures(this);
     makeAugTextures(this);
     makeLocalTextures(this);
+    startAmbience(this, 'surface');
 
     // Flat pre-dawn ground with one low ledge (jump still exists — barely).
     const contour = [
@@ -1418,6 +1420,8 @@ export default class Level23Scene extends Phaser.Scene {
     if (p.grounded) this.groundedAt = now;
 
     const input = this.readInput();
+    // A two-tonne shell leaving the ground has a sound.
+    if (input.jump && p.grounded) synthThud(this, { freq: 170, gain: 0.14, dur: 0.2 });
     const res = this.player.step(dt, input, (x) => this.groundYAt(x), { worldEnd: L3.worldEnd });
     this.player.animate(dt);
     if (res && res.land && res.land > AGG.shockMinVy) this.shockwave(p.x, p.y, res.land);

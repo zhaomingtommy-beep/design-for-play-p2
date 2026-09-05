@@ -11,6 +11,7 @@ import {
 } from './torso.js';
 import { makeVesselVoice } from './vessel.js';
 import { applyLens, addFogBands, addNeonSign, addShaft, addBeacon, addEmbers, addSteam } from './fx.js';
+import { startAmbience } from './ambience.js';
 
 /**
  * L2-1 「切除」 — THE UPGRADE, level one of three.
@@ -178,6 +179,7 @@ export default class Level21Scene extends Phaser.Scene {
   create() {
     this.phase = 'WALK';
     makeTorsoTextures(this);
+    startAmbience(this, 'city');
     this.buildTextures();
     this.buildSkyline();
     this.buildPropaganda();
