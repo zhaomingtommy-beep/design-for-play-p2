@@ -3,7 +3,7 @@ import { GAME_W, GAME_H } from '../../constants.js';
 import { Heightfield, playVoidDeath, synthThud, synthBuzz, makeTorsoTextures } from './torso.js';
 import { AUG_TUNE, PSY_TUNE, makeAugTextures, AugPlayer, Psycho } from './aug.js';
 import { makeVesselVoice } from './vessel.js';
-import { applyLens, addFogBands, addEmbers, addSteam } from './fx.js';
+import { applyLens, addFogBands, addEmbers, addSteam, addShaft } from './fx.js';
 
 /**
  * L2-2 「拼接」 — THE UPGRADE, level two of three (docs/chapter2-redesign.md §4).
@@ -120,6 +120,7 @@ export default class Level22Scene extends Phaser.Scene {
     this.buildBackdrop();
     this.field.draw(this, { maxX: L2.worldEnd + 50, bottom: 800, fill: 0x0e1219 });
     this.buildDecor();
+    this.buildRigging();
     this.buildAnchors();
     this.buildShards();
     this.buildElevator();
@@ -251,6 +252,21 @@ export default class Level22Scene extends Phaser.Scene {
       g.fillCircle(px + 30, 296, 10); // head
       g.fillEllipse(px + 18, 352, 8, 22); // limbs adrift
       g.fillEllipse(px + 42, 350, 8, 22);
+      // Glass sheen, a pedestal, and a status LED that never agrees.
+      g.fillStyle(0x9fd8e8, 0.09);
+      g.fillRect(px + 10, 250, 7, 182);
+      g.fillRect(px + 42, 258, 3, 150);
+      g.fillStyle(0x0a0e12, 1);
+      g.fillRect(px - 8, 440, 76, 14);
+      g.fillStyle(0x1d2632, 1);
+      g.fillRect(px - 8, 440, 76, 3);
+      const led = this.add
+        .image(px + 52, 446, 'ch2-mote')
+        .setScale(0.5)
+        .setTint(i % 2 ? 0x3fbf8e : 0xff3c46)
+        .setBlendMode(Phaser.BlendModes.ADD)
+        .setDepth(2);
+      this.tweens.add({ targets: led, alpha: 0.15, duration: 700 + i * 170, yoyo: true, repeat: -1 });
       this.add
         .particles(px + 30, 420, 'ch2-mote', {
           speedY: { min: -40, max: -18 },
@@ -276,6 +292,18 @@ export default class Level22Scene extends Phaser.Scene {
       g.fillEllipse(lx - 8, gy - 14, 18, 7); // a pale forearm on top
     });
 
+    // Hazard chevrons at every pit rim — the facility marked its own teeth.
+    L2.gaps.forEach((gp) => {
+      [gp.from - 4, gp.to + 4].forEach((ex) => {
+        const gy = this.field.groundAt(ex);
+        if (gy === null) return;
+        for (let k = 0; k < 3; k++) {
+          g.fillStyle(k % 2 ? 0x14181f : 0xd8a02c, 0.55);
+          g.fillTriangle(ex - 13 + k * 9, gy - 1, ex - 5 + k * 9, gy - 1, ex - 9 + k * 9, gy - 9);
+        }
+      });
+    });
+
     // Conveyor hooks with dangling arms (decor anim).
     [2050, 3350, 4550].forEach((hx, i) => {
       const arm = this.add.image(hx, 150, 'ch2-psy-limb').setOrigin(0.5, 0).setDepth(2).setAlpha(0.7).setScale(0.4);
@@ -288,6 +316,82 @@ export default class Level22Scene extends Phaser.Scene {
         repeat: -1,
         ease: 'Sine.easeInOut',
       });
+    });
+  }
+
+  /** Ceiling rigging and work lights: the depth cues of a working facility. */
+  buildRigging() {
+    const g = this.add.graphics().setDepth(2);
+    let seed = 7;
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+
+    // Catenary cable spans sagging from the ceiling, hanger to hanger.
+    for (let x0 = 160; x0 < L2.worldEnd - 320; x0 += 520 + rnd() * 280) {
+      const span = 360 + rnd() * 180;
+      const y = 58 + rnd() * 44;
+      const sag = 26 + rnd() * 22;
+      g.lineStyle(1, 0x232d3a, 0.9);
+      g.beginPath();
+      for (let t = 0; t <= 16; t++) {
+        const u = t / 16;
+        const cx = x0 + span * u;
+        const cy = y + sag * 4 * u * (1 - u);
+        if (t === 0) g.moveTo(cx, cy);
+        else g.lineTo(cx, cy);
+      }
+      g.strokePath();
+      g.fillStyle(0x2a3442, 1);
+      g.fillRect(x0 - 2, y - 7, 4, 9);
+      g.fillRect(x0 + span - 2, y - 7, 4, 9);
+      // every third span drops a loose tail that sways
+      if (rnd() < 0.33) {
+        const tx = x0 + span * (0.3 + rnd() * 0.4);
+        const tail = this.add.graphics().setDepth(2);
+        tail.lineStyle(1, 0x232d3a, 1);
+        tail.lineBetween(0, 0, 0, 60 + rnd() * 50);
+        tail.fillStyle(0x39424e, 1);
+        tail.fillCircle(0, 0, 2);
+        tail.setPosition(tx, y + sag * 0.8);
+        this.tweens.add({
+          targets: tail,
+          rotation: 0.18,
+          duration: 2400 + rnd() * 1600,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut',
+        });
+      }
+    }
+
+    // Valve wheels on the risers — maintenance was here, once.
+    [1450, 3200, 5150].forEach((vx) => {
+      const gy = (this.field.groundAt(vx) ?? 505) - 150;
+      g.lineStyle(2, 0x39424e, 0.9);
+      g.strokeCircle(vx, gy, 11);
+      for (let a = 0; a < 4; a++) {
+        const ang = (a * Math.PI) / 4;
+        g.lineBetween(
+          vx - Math.cos(ang) * 11, gy - Math.sin(ang) * 11,
+          vx + Math.cos(ang) * 11, gy + Math.sin(ang) * 11,
+        );
+      }
+      g.fillStyle(0x5c1216, 1);
+      g.fillCircle(vx, gy, 3);
+    });
+
+    // Work lamps still burning over the shard fields — cones of dusty light.
+    [750, 2100, 4150, 5700].forEach((lx, i) => {
+      const gy = this.field.groundAt(lx);
+      if (gy === null) return;
+      addShaft(this, { x: lx, y: gy - 215, color: 0xd8b46b, alpha: 0.1, scaleX: 1.05, scaleY: 0.6, depth: 2 });
+      const bulb = this.add
+        .image(lx, gy - 214, 'ch2-mote')
+        .setScale(0.9, 0.5)
+        .setTint(0xd8b46b)
+        .setAlpha(0.5)
+        .setBlendMode(Phaser.BlendModes.ADD)
+        .setDepth(2);
+      this.tweens.add({ targets: bulb, alpha: 0.25, duration: 1900 + i * 350, yoyo: true, repeat: -1 });
     });
   }
 
@@ -363,6 +467,13 @@ export default class Level22Scene extends Phaser.Scene {
     g.fillStyle(0x0a0d13, 1);
     g.fillRect(5760, 505, 50, 300);
     g.fillRect(6280, 350, 40, 460);
+    // Hazard paint on the shaft rims — the last warning before the drop.
+    [[5762, 501], [6282, 346]].forEach(([rx, ry]) => {
+      for (let k = 0; k < 4; k++) {
+        g.fillStyle(k % 2 ? 0x14181f : 0xd8a02c, 0.65);
+        g.fillRect(rx + k * 11, ry, 9, 4);
+      }
+    });
     g.lineStyle(2, 0x2a3442, 0.8);
     g.lineBetween(5810, 505, 5810, 790);
     g.lineBetween(6280, 350, 6280, 790);

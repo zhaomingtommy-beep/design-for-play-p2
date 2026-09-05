@@ -294,6 +294,7 @@ export default class Level23Scene extends Phaser.Scene {
     this.buildGate();
     this.buildPitSign();
     this.buildSlabs();
+    this.buildRuins();
     this.buildChase();
 
     this.player = new AggregatePlayer(this, { x: L3.spawn.x, y: this.field.groundAt(L3.spawn.x) });
@@ -636,6 +637,138 @@ export default class Level23Scene extends Phaser.Scene {
       this.slabSaid = true;
       this.vessel.say('Structural failure: logged. The district was already condemned.');
     }
+  }
+
+  // ----------------------------------------------------------- near ruins
+
+  /** The district up close: cracked asphalt, shell craters, torn rebar,
+   *  toppled lamps, rubble strata, meltwater, and the gate's last slogan. */
+  buildRuins() {
+    const g = this.add.graphics().setDepth(3.5);
+    let seed = 13;
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+
+    // Asphalt fatigue: cracks wandering across the whole street.
+    g.lineStyle(1, 0x0b0e13, 0.9);
+    for (let x = 80; x < L3.worldEnd - 100; x += 90 + rnd() * 150) {
+      const y = L3.ground + 8 + rnd() * 40;
+      g.beginPath();
+      g.moveTo(x, y);
+      let cx = x;
+      let cy = y;
+      for (let k = 0; k < 4; k++) {
+        cx += 14 + rnd() * 22;
+        cy += (rnd() - 0.5) * 10;
+        g.lineTo(cx, cy);
+      }
+      g.strokePath();
+    }
+
+    // Shell craters — the bombardment that "retired" the district.
+    [420, 1560, 2380, 3120].forEach((cx) => {
+      g.fillStyle(0x090c11, 1);
+      g.fillEllipse(cx, L3.ground + 26, 150, 22);
+      g.lineStyle(2, 0x2c313c, 0.8);
+      g.beginPath();
+      g.arc(cx, L3.ground + 22, 72, Math.PI * 1.08, Math.PI * 1.92);
+      g.strokePath();
+      g.fillStyle(0x171a21, 1);
+      g.fillEllipse(cx - 62, L3.ground + 12, 34, 10);
+      g.fillEllipse(cx + 56, L3.ground + 14, 28, 9);
+    });
+
+    // Torn rebar sprouting from every gap rim — the street's broken bones.
+    g.lineStyle(2, 0x3a4a5c, 0.9);
+    L3.gaps.forEach((gp) => {
+      [gp.from + 6, gp.to - 6].forEach((ex, side) => {
+        for (let k = 0; k < 3; k++) {
+          const bx = ex + (side ? -k * 11 : k * 11);
+          g.lineBetween(bx, L3.ground - 2, bx + (side ? -1 : 1) * (6 + k * 3), L3.ground - 22 - k * 6);
+        }
+      });
+    });
+
+    // Toppled street lamps — one of them still burning, badly.
+    [900, 2050, 3300].forEach((lx, i) => {
+      const lean = i % 2 ? -1 : 1;
+      g.lineStyle(3, 0x23262e, 1);
+      g.lineBetween(lx, L3.ground - 4, lx + lean * 90, L3.ground - 66);
+      g.fillStyle(0x23262e, 1);
+      g.fillRect(lx + lean * 90 - 8, L3.ground - 76, 20, 10);
+      if (i === 1) {
+        const lamp = this.add
+          .image(lx + lean * 94, L3.ground - 64, 'ch2-fx-glow')
+          .setScale(0.8, 0.5)
+          .setTint(0xd8b46b)
+          .setAlpha(0.3)
+          .setBlendMode(Phaser.BlendModes.ADD)
+          .setDepth(3.6);
+        this.tweens.add({
+          targets: lamp,
+          alpha: 0.05,
+          duration: 120,
+          yoyo: true,
+          repeat: -1,
+          repeatDelay: 900,
+        });
+      }
+    });
+
+    // Rubble strata: silhouette heaps leaning on the street line.
+    [260, 700, 1300, 1760, 2300, 2700, 3400].forEach((rx) => {
+      const w = 90 + (rx % 3) * 30;
+      g.fillStyle(0x10131a, 1);
+      g.fillTriangle(rx - w / 2, L3.ground, rx + w / 2, L3.ground, rx + w * 0.1, L3.ground - 26 - (rx % 17));
+      g.fillStyle(0x171a21, 1);
+      g.fillTriangle(rx - w * 0.3, L3.ground, rx + w * 0.5, L3.ground, rx + w * 0.15, L3.ground - 14 - (rx % 11));
+    });
+
+    // Meltwater puddles holding the last of the night.
+    [560, 1420, 2240, 2980].forEach((px) => {
+      g.fillStyle(0x0d1420, 0.9);
+      g.fillEllipse(px, L3.ground + 30, 120, 10);
+      const sheen = this.add
+        .image(px, L3.ground + 28, 'ch2-fx-glow')
+        .setScale(1.1, 0.14)
+        .setTint(0x8a94b0)
+        .setAlpha(0.1)
+        .setBlendMode(Phaser.BlendModes.ADD)
+        .setDepth(3.6);
+      this.tweens.add({ targets: sheen, alpha: 0.2, duration: 3400 + (px % 900), yoyo: true, repeat: -1 });
+    });
+
+    // The banner at the gate: the district's last slogan, weathered through.
+    const banner = this.add.container(L3.gateX + 45, L3.ground - 150).setDepth(3.7);
+    const cloth = this.add.graphics();
+    cloth.fillStyle(0x2c2620, 0.95);
+    cloth.beginPath();
+    cloth.moveTo(-34, 0);
+    cloth.lineTo(34, 0);
+    cloth.lineTo(30, 62);
+    cloth.lineTo(14, 54);
+    cloth.lineTo(2, 66);
+    cloth.lineTo(-12, 56);
+    cloth.lineTo(-30, 64);
+    cloth.closePath();
+    cloth.fillPath();
+    cloth.lineStyle(1, 0x4a4034, 0.8);
+    cloth.lineBetween(-34, 0, 34, 0);
+    const slogan = this.add
+      .text(0, 24, 'RENEWAL', {
+        fontFamily: 'ui-monospace, Menlo, monospace',
+        fontSize: '13px',
+        color: '#7a6a52',
+      })
+      .setOrigin(0.5);
+    banner.add([cloth, slogan]);
+    this.tweens.add({
+      targets: banner,
+      rotation: 0.06,
+      duration: 2600,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
   }
 
   // ------------------------------------------------------------ chase (§5.3)
