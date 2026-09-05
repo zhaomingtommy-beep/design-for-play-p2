@@ -431,6 +431,14 @@ export class AugPlayer {
 
     this.walkPhase = 0;
     this.armState = null; // null | {phase:'extend'|'pull', ...}
+    this.landWobble = 0; // touchdown squash spring
+    this.landWobbleV = 0;
+    this.lastLandImpact = 0;
+  }
+
+  /** Spring kick on touchdown — the metal frame remembers the floor. */
+  landKick(impact = 400) {
+    this.landWobbleV += Phaser.Math.Clamp(impact / 900, 0.25, 0.9);
   }
 
   get hurt() {
@@ -514,6 +522,7 @@ export class AugPlayer {
 
     const gy = this.field.groundAt(p.x);
     if (gy !== null && p.y >= gy && p.vy > 0) {
+      this.lastLandImpact = p.vy;
       p.y = gy;
       p.vy = 0;
       p.grounded = true;
@@ -551,11 +560,21 @@ export class AugPlayer {
       this.parts.armL.setRotation(-0.4);
       poseArmR(0.5);
     } else {
-      ['legL', 'legR', 'armL'].forEach((k) => this.parts[k].setRotation(0));
-      poseArmR(0);
+      // Idle: the frame breathes — a slow swell, arms adrift.
+      const sway = Math.sin(now * 0.0026);
+      this.parts.legL.setRotation(0.03);
+      this.parts.legR.setRotation(-0.03);
+      this.parts.armL.setRotation(0.06 + sway * 0.05);
+      poseArmR(-0.06 - sway * 0.05);
     }
+    // Touchdown squash spring + idle breathing, applied to the whole frame.
+    this.landWobbleV += (-this.landWobble * 140 - this.landWobbleV * 10) * dt;
+    this.landWobble += this.landWobbleV * dt;
+    const idle = p.grounded && p.vx === 0 && now >= this.dashUntil;
+    const breath = idle ? (Math.sin(now * 0.0026) + 1) / 2 : 0;
+    const sq = this.landWobble;
     this.fig.setPosition(p.x, p.y);
-    this.fig.setScale(p.facing, 1);
+    this.fig.setScale(p.facing * (1 + sq * 0.35 - breath * 0.006), 1 - sq * 0.45 + breath * 0.014);
     this.coreGlow.setPosition(p.x, p.y - 32);
     // hurt blink
     this.fig.setAlpha(this.hurt && Math.floor(this.scene.time.now / 90) % 2 === 0 ? 0.35 : 1);
@@ -750,19 +769,61 @@ export class Psycho {
     const p = this.p;
     const moving = p.grounded && p.vx !== 0;
     this.walkPhase += Math.abs(p.vx) * dt * 0.07;
-    if (moving) {
+    const P = this.parts;
+    if (this.state === 'windup') {
+      // Coiling: crouched low, arms thrown up, the whole frame trembling.
+      const shake = Math.sin(now * 0.09) * 0.06;
+      P.legL.setRotation(0.8);
+      if (P.legR) P.legR.setRotation(-0.8);
+      P.armL.setRotation(-2.4 + shake);
+      P.armR.setRotation(-2.4 - shake);
+      P.head.setRotation(0.3);
+      this.fig.setRotation(0);
+      this.fig.setScale(this.facing * 1.08, 0.86);
+    } else if (this.state === 'lunge') {
+      // Fully committed: body pitched forward, limbs streaming behind.
+      P.legL.setRotation(0.9);
+      if (P.legR) P.legR.setRotation(0.6);
+      P.armL.setRotation(1.9);
+      P.armR.setRotation(2.1);
+      P.head.setRotation(-0.2);
+      this.fig.setRotation(this.facing * -0.22);
+      this.fig.setScale(this.facing * 1.14, 0.92);
+    } else if (this.state === 'stagger') {
+      // The blow is still traveling through it: arched back, limbs flung.
+      const away = p.x < (this.lastHitFrom ?? p.x) ? 1 : -1;
+      P.legL.setRotation(-0.5);
+      if (P.legR) P.legR.setRotation(0.4);
+      P.armL.setRotation(-1.6);
+      P.armR.setRotation(1.6);
+      P.head.setRotation(-0.5);
+      this.fig.setRotation(away * 0.3);
+      this.fig.setScale(this.facing, 1);
+    } else if (moving) {
       // twitchy, wrong-looking stride: uneven swing, occasional shiver
       const sw = Math.sin(this.walkPhase) * 0.7;
       const twitch = Math.floor(now / 130) % 5 === 0 ? 0.25 : 0;
-      this.parts.legL.setRotation(sw + twitch);
-      if (this.parts.legR) this.parts.legR.setRotation(-sw + twitch);
-      this.parts.armL.setRotation(-sw * 0.9);
-      this.parts.armR.setRotation(sw * 0.9 + twitch);
-      this.parts.head.setRotation(twitch * 0.8);
+      P.legL.setRotation(sw + twitch);
+      if (P.legR) P.legR.setRotation(-sw + twitch);
+      P.armL.setRotation(-sw * 0.9);
+      P.armR.setRotation(sw * 0.9 + twitch);
+      P.head.setRotation(twitch * 0.8);
+      this.fig.setRotation(0);
+      this.fig.setScale(this.facing, 1);
+    } else {
+      // Idle: it never quite holds still — a slow sway and a head tic.
+      const sway = Math.sin(now * 0.0022 + this.walkPhase) * 0.05;
+      const tic = Math.floor(now / 900) % 4 === 0 ? Math.sin(now * 0.11) * 0.3 : 0;
+      P.legL.setRotation(0.04);
+      if (P.legR) P.legR.setRotation(-0.04);
+      P.armL.setRotation(sway + 0.08);
+      P.armR.setRotation(-sway - 0.08);
+      P.head.setRotation(sway * 1.6 + tic);
+      this.fig.setRotation(0);
+      this.fig.setScale(this.facing * (1 + Math.sin(now * 0.003) * 0.015), 1);
     }
     if (this.state !== 'windup') this.fig.setAlpha(1);
     this.fig.setPosition(p.x, p.y);
-    this.fig.setScale(this.facing, 1);
     if (this.glowImg) this.glowImg.setPosition(p.x, p.y - 32);
   }
 

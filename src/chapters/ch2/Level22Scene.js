@@ -661,6 +661,7 @@ export default class Level22Scene extends Phaser.Scene {
       const ev = this.player.step(dt, input, { worldEnd: L2.worldEnd });
       if (ev === 'land') {
         synthThud(this, { freq: 130, gain: 0.18, dur: 0.15 });
+        this.player.landKick(this.player.lastLandImpact);
         this.dustPuff(p.x, p.y);
       } else if (ev === 'dashing' && !wasDashing) {
         this.dashFx(p);
@@ -976,6 +977,15 @@ export default class Level22Scene extends Phaser.Scene {
       rotation: [0, 1.5, -2.0, 2.2][stage],
       duration: swingMs,
       ease: 'Quad.easeIn',
+    });
+    // The whole frame commits: a torso twist riding the swing.
+    this.player.fig.setRotation(0);
+    this.tweens.add({
+      targets: this.player.fig,
+      rotation: fx * [0, -0.09, 0.11, -0.15][stage],
+      duration: swingMs,
+      yoyo: true,
+      ease: 'Quad.easeOut',
     });
 
     // The blade's afterimage: a crescent that sweeps and dies — each stage

@@ -159,6 +159,20 @@ class AggregatePlayer {
     this.wobble = 0;
     this.wobbleV = 0;
     this.revealed = 0; // FORM phase reveals the shell piece by piece
+
+    // Grind dust: the shell drags metal across the street as it walks.
+    this.grindDust = scene.add
+      .particles(0, 0, 'ch2-mote', {
+        speed: { min: 30, max: 90 },
+        angle: { min: 200, max: 340 },
+        lifespan: { min: 250, max: 550 },
+        scale: { min: 0.25, max: 0.6 },
+        alpha: { start: 0.4, end: 0 },
+        tint: [0x39424e, 0x5d6a78],
+        emitting: false,
+      })
+      .setDepth(4);
+    this.grindAt = 0;
   }
 
   get hurt() {
@@ -261,6 +275,12 @@ class AggregatePlayer {
     }
     this.coreGlow.setPosition(p.x, p.y - 50);
     this.fig.setAlpha(this.hurt && Math.floor(now / 90) % 2 === 0 ? 0.35 : 1);
+    // Walking grinds the shell against the street — dust and a metal rasp.
+    if (p.grounded && Math.abs(p.vx) > 30 && now > this.grindAt) {
+      this.grindAt = now + 160;
+      this.grindDust.explode(3, p.x - p.facing * 16, p.y - 3);
+      if (Math.random() < 0.35) synthBuzz(this.scene, { freq: 160 + Math.random() * 140, dur: 0.05, gain: 0.03 });
+    }
   }
 }
 
