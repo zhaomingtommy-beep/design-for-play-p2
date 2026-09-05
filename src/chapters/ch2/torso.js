@@ -40,82 +40,152 @@ export function makeTorsoTextures(scene) {
 
   // The torso is NOT a sphere. A wet cluster of lumps — ribcage mass,
   // shoulder, head stump — with creases and one cold AI core under the skin.
+  // Baked at 2x and drawn at 0.5: the detail survives the squash.
   const FLESH = 0xa08a83;
   const FLESH_HI = 0xc4aca2;
   const FLESH_LO = 0x5d4b48;
+  const FLESH_DEEP = 0x42332f;
   const lumps = [
-    [20, 22, 13], // ribcage mass
-    [12, 17, 9], // side slack
-    [28, 15, 8], // shoulder
-    [25, 29, 8], // hip sag
-    [11, 27, 7], // lower slack
-    [30, 9, 5], // head stump
+    [40, 44, 26], // ribcage mass
+    [24, 34, 18], // side slack
+    [56, 30, 16], // shoulder
+    [50, 58, 16], // hip sag
+    [22, 54, 14], // lower slack
+    [60, 18, 10], // head stump
   ];
+  // base masses
   lumps.forEach(([x, y, r]) => {
     g.fillStyle(FLESH, 1);
     g.fillCircle(x, y, r);
   });
+  // form shadows — crescents at each lump's lower-right
   lumps.forEach(([x, y, r]) => {
-    g.fillStyle(FLESH_HI, 0.55);
-    g.fillCircle(x - r * 0.28, y - r * 0.32, r * 0.5);
+    g.fillStyle(FLESH_LO, 0.55);
+    g.fillCircle(x + r * 0.22, y + r * 0.26, r * 0.62);
   });
-  g.lineStyle(1.5, 0xd8c6bc, 0.75);
+  // re-assert the lit tops
+  lumps.forEach(([x, y, r]) => {
+    g.fillStyle(FLESH, 0.9);
+    g.fillCircle(x - r * 0.1, y - r * 0.12, r * 0.7);
+  });
+  // wet specular caps
+  lumps.forEach(([x, y, r]) => {
+    g.fillStyle(FLESH_HI, 0.7);
+    g.fillCircle(x - r * 0.28, y - r * 0.32, r * 0.42);
+  });
+  // hot pinpoint highlights — the skin is slick
+  lumps.forEach(([x, y, r], i) => {
+    g.fillStyle(0xefe2da, 0.85);
+    g.fillCircle(x - r * 0.34, y - r * 0.4, 1.6 + (i % 2));
+  });
+  // rim light — cold, from the upper left, on every lump
+  g.lineStyle(2.5, 0xd8e4ec, 0.55);
   lumps.forEach(([x, y, r]) => {
     g.beginPath();
-    g.arc(x, y, r - 0.5, Math.PI * 0.7, Math.PI * 1.5);
+    g.arc(x, y, r - 1, Math.PI * 0.72, Math.PI * 1.45);
     g.strokePath();
   });
-  g.lineStyle(2, FLESH_LO, 0.8);
+  // deep creases between the masses
+  g.lineStyle(3.5, FLESH_DEEP, 0.75);
   g.beginPath();
-  g.arc(16, 20, 8, 0.3, 1.7);
+  g.arc(32, 40, 16, 0.3, 1.7);
   g.strokePath();
   g.beginPath();
-  g.arc(24, 22, 9, 1.6, 3.0);
+  g.arc(48, 44, 18, 1.6, 3.0);
   g.strokePath();
-  g.lineStyle(1, FLESH_LO, 0.6);
-  g.lineBetween(27, 12, 31, 8);
-  g.fillStyle(0x6e1f24, 0.5); // one surgical blood smear
-  g.fillEllipse(14, 30, 10, 4);
-  g.fillStyle(0x9fd8e8, 1); // AI core under the skin
-  g.fillCircle(19, 19, 2.5);
-  g.generateTexture('ch2-blob', 40, 40);
+  g.beginPath();
+  g.arc(30, 52, 12, 0.5, 1.9);
+  g.strokePath();
+  // veins — thin, dark red, wandering
+  g.lineStyle(1.2, 0x7a3638, 0.55);
+  g.lineBetween(28, 30, 38, 42);
+  g.lineBetween(38, 42, 34, 52);
+  g.lineBetween(52, 36, 46, 50);
+  g.lineBetween(24, 48, 34, 58);
+  // surgical staple seam across the shoulder
+  g.lineStyle(1.4, FLESH_DEEP, 0.8);
+  g.lineBetween(50, 22, 62, 30);
+  g.lineStyle(1.6, 0xb9c4cc, 0.85);
+  for (let i = 0; i < 4; i++) {
+    const t = i / 3;
+    g.lineBetween(50 + 12 * t, 19 + 8 * t, 52 + 12 * t, 25 + 8 * t);
+  }
+  // one surgical blood smear, fresher at the wound edge
+  g.fillStyle(0x6e1f24, 0.5);
+  g.fillEllipse(28, 60, 20, 8);
+  g.fillStyle(0x8e1f24, 0.65);
+  g.fillEllipse(24, 61, 10, 4);
+  // AI core under the skin — bright nucleus, cold halo bleeding outward
+  g.fillStyle(0x9fd8e8, 0.28);
+  g.fillCircle(38, 38, 9);
+  g.fillStyle(0x9fd8e8, 0.55);
+  g.fillCircle(38, 38, 5);
+  g.fillStyle(0xe8fbff, 1);
+  g.fillCircle(38, 38, 2.6);
+  g.generateTexture('ch2-blob', 80, 80);
   g.clear();
 
-  g.fillStyle(FLESH_HI, 0.8);
-  g.fillCircle(5, 5, 4);
-  g.fillStyle(FLESH, 0.9);
-  g.fillCircle(6, 6, 3);
-  g.generateTexture('ch2-lump', 10, 10);
-  g.clear();
-
+  // loose flesh lump (the wobbling satellites)
   g.fillStyle(FLESH, 1);
-  g.fillRoundedRect(3, 0, 8, 16, 4);
-  g.fillStyle(FLESH_LO, 1);
-  g.fillEllipse(7, 16, 8, 5); // sealed wound end
-  g.fillStyle(FLESH_HI, 0.5);
-  g.fillRect(4, 1, 3, 10);
-  g.lineStyle(1, 0xd8c6bc, 0.6);
-  g.lineBetween(3, 2, 3, 14);
-  g.generateTexture('ch2-stump', 14, 20);
+  g.fillCircle(10, 10, 9);
+  g.fillStyle(FLESH_LO, 0.55);
+  g.fillCircle(12, 12, 5.5);
+  g.fillStyle(FLESH_HI, 0.85);
+  g.fillCircle(7, 7, 4);
+  g.fillStyle(0xefe2da, 0.8);
+  g.fillCircle(6, 6, 1.4);
+  g.generateTexture('ch2-lump', 20, 20);
   g.clear();
 
-  g.fillStyle(0xffffff, 1);
-  g.fillCircle(4, 4, 4);
+  // severed limb stump: sealed wound, bone nub, staple row
+  g.fillStyle(FLESH, 1);
+  g.fillRoundedRect(6, 0, 16, 32, 7);
+  g.fillStyle(FLESH_HI, 0.5);
+  g.fillRoundedRect(8, 2, 5, 24, 2);
+  g.fillStyle(FLESH_LO, 1);
+  g.fillEllipse(14, 33, 16, 10); // sealed wound end
+  g.fillStyle(0xd8cfc6, 0.9);
+  g.fillEllipse(14, 33, 6, 4); // bone nub
+  g.fillStyle(0x8e1f24, 0.8);
+  g.fillEllipse(17, 34, 6, 3); // blood ring
+  g.lineStyle(1.4, 0xd8e4ec, 0.55);
+  g.lineBetween(6, 4, 6, 26);
+  g.lineStyle(1.5, 0xb9c4cc, 0.8);
+  for (let i = 0; i < 3; i++) g.lineBetween(9 + i * 4, 28, 10 + i * 4, 32); // staples
+  g.generateTexture('ch2-stump', 28, 40);
+  g.clear();
+
+  // The mote is EVERY glow in the chapter — a soft radial orb, not a hard dot.
+  for (let r = 4; r > 0; r -= 0.5) {
+    const t = 1 - r / 4;
+    g.fillStyle(0xffffff, Math.pow(t, 1.9));
+    g.fillCircle(4, 4, r);
+  }
   g.generateTexture('ch2-mote', 8, 8);
 
   // A HEAD. Pale, eyes shut, neck wound dark — the thing that makes the
   // cluster read as "what is left of a person", never as a ball.
   g.fillStyle(0xc4aca2, 1);
-  g.fillCircle(8, 7, 7);
+  g.fillCircle(16, 14, 14);
   g.fillStyle(0xa08a83, 1);
-  g.fillEllipse(9, 11, 11, 6); // jaw slack
-  g.lineStyle(1.2, 0x3a2f2c, 0.9);
-  g.lineBetween(4, 5, 8, 5.6); // closed eye — he never asked for any of this
+  g.fillEllipse(18, 22, 22, 12); // jaw slack
+  g.fillStyle(0x8a736c, 0.6);
+  g.fillEllipse(20, 26, 12, 6); // under-jaw shadow
+  g.lineStyle(2, 0x3a2f2c, 0.9);
+  g.lineBetween(8, 11, 16, 12); // closed eye — he never asked for any of this
+  g.lineStyle(1, 0x3a2f2c, 0.5);
+  g.lineBetween(10, 12.5, 14, 13); // lash line
+  g.fillStyle(0xa08a83, 0.9);
+  g.fillTriangle(17, 14, 20, 14, 18.5, 18); // nose hint
   g.fillStyle(0x5c1216, 1);
-  g.fillEllipse(8, 14, 9, 5); // neck wound
-  g.fillStyle(0xd8c6bc, 0.5);
-  g.fillCircle(6, 4, 2.2); // brow highlight
-  g.generateTexture('ch2-torso-head', 16, 18);
+  g.fillEllipse(16, 28, 18, 10); // neck wound
+  g.fillStyle(0x8e1f24, 0.8);
+  g.fillEllipse(13, 27, 8, 4); // fresher blood at the tear
+  g.fillStyle(0xd8c6bc, 0.55);
+  g.fillCircle(12, 8, 4.5); // brow highlight
+  g.fillStyle(0xefe2da, 0.7);
+  g.fillCircle(11, 7, 1.6);
+  g.generateTexture('ch2-torso-head', 32, 36);
   g.destroy();
 }
 
@@ -219,22 +289,22 @@ export class Torso {
       [2, 9],
       [-9, -4],
     ];
-    this.lumps = lumpSpots.map(([lx, ly]) => scene.add.image(lx, ly, 'ch2-lump'));
+    this.lumps = lumpSpots.map(([lx, ly]) => scene.add.image(lx, ly, 'ch2-lump').setScale(0.5));
     this.lumpRing.add(this.lumps);
 
     this.stumps = [
-      { img: scene.add.image(0, 0, 'ch2-stump').setOrigin(0.5, 0.2), base: 2.1, swing: 0, swingV: 0 },
-      { img: scene.add.image(0, 0, 'ch2-stump').setOrigin(0.5, 0.2), base: 4.4, swing: 0, swingV: 0 },
+      { img: scene.add.image(0, 0, 'ch2-stump').setOrigin(0.5, 0.2).setScale(0.5), base: 2.1, swing: 0, swingV: 0 },
+      { img: scene.add.image(0, 0, 'ch2-stump').setOrigin(0.5, 0.2).setScale(0.5), base: 4.4, swing: 0, swingV: 0 },
     ];
     // The head rides the cluster like the stumps do — flopping on its neck
     // wound as the body tumbles. This is a person, not a ball.
-    this.head = { img: scene.add.image(0, 0, 'ch2-torso-head').setOrigin(0.5, 0.75), base: 5.3, swing: 0, swingV: 0 };
+    this.head = { img: scene.add.image(0, 0, 'ch2-torso-head').setOrigin(0.5, 0.75).setScale(0.5), base: 5.3, swing: 0, swingV: 0 };
     this.blob.add([this.bodyImg, this.lumpRing, ...this.stumps.map((s) => s.img), this.head.img]);
 
     this.jelly = 0;
     this.jellyV = 0;
     this.lastSpinV = 0;
-    this.baseScale = 1.18;
+    this.baseScale = 0.59; // 2x-baked textures, drawn at half size
 
     this.coreLight = scene.add
       .image(this.p.x, this.p.y, 'ch2-mote')

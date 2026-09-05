@@ -50,163 +50,332 @@ export function makeAugTextures(scene) {
 
   const STEEL = 0x39424e;
   const STEEL_HI = 0x5d6a78;
+  const STEEL_LO = 0x232a34;
   const SEAM = 0x9fd8e8;
+  const SEAM_HOT = 0xe8fbff;
+
+  // All baked at 2.5x and drawn at 0.4 — panel lines and rivets stay legible
+  // instead of dissolving into single pixels.
 
   // Augmented body: gunmetal torso with cold seams and the AI core.
   g.fillStyle(STEEL, 1);
-  g.fillRoundedRect(0, 0, 16, 26, 4);
-  g.fillStyle(STEEL_HI, 0.7);
-  g.fillRoundedRect(2, 2, 5, 22, 2);
-  g.lineStyle(1, SEAM, 0.85);
-  g.lineBetween(3, 6, 13, 6);
-  g.lineBetween(3, 14, 13, 14);
-  g.fillStyle(SEAM, 1);
-  g.fillCircle(8, 10, 2.4); // the core, now in a metal chest
-  g.generateTexture('ch2-aug-body', 16, 26);
+  g.fillRoundedRect(0, 0, 40, 65, 9);
+  // side shadow + left rim light: the body is a cylinder, not a card
+  g.fillStyle(STEEL_LO, 0.8);
+  g.fillRoundedRect(28, 2, 11, 61, 6);
+  g.lineStyle(2, STEEL_HI, 0.9);
+  g.lineBetween(2, 6, 2, 58);
+  // chest plate with shade bands
+  g.fillStyle(STEEL_HI, 0.55);
+  g.fillRoundedRect(5, 5, 16, 22, 4);
+  g.fillStyle(STEEL_LO, 0.5);
+  g.fillRoundedRect(5, 18, 16, 9, 3);
+  // ab segments
+  g.fillStyle(STEEL_LO, 0.65);
+  g.fillRect(4, 34, 32, 3);
+  g.fillRect(4, 44, 32, 3);
+  g.fillRect(4, 54, 32, 3);
+  // glowing seams
+  g.lineStyle(2, SEAM, 0.9);
+  g.lineBetween(5, 15, 35, 15);
+  g.lineBetween(5, 39, 35, 39);
+  g.lineStyle(1, SEAM_HOT, 0.7);
+  g.lineBetween(5, 14, 35, 14);
+  // the core, now in a metal chest — halo baked in
+  g.fillStyle(SEAM, 0.3);
+  g.fillCircle(20, 25, 9);
+  g.fillStyle(SEAM, 0.85);
+  g.fillCircle(20, 25, 5.5);
+  g.fillStyle(SEAM_HOT, 1);
+  g.fillCircle(20, 25, 2.6);
+  // shoulder caps + rivets
+  g.fillStyle(STEEL_HI, 0.9);
+  g.fillCircle(6, 7, 5);
+  g.fillCircle(34, 7, 5);
+  g.fillStyle(STEEL_LO, 1);
+  g.fillCircle(6, 7, 2);
+  g.fillCircle(34, 7, 2);
+  g.generateTexture('ch2-aug-body', 40, 65);
   g.clear();
 
+  // head: sensor dome, one calm slit eye, jaw plate
   g.fillStyle(STEEL, 1);
-  g.fillCircle(6, 6, 6);
-  g.lineStyle(1, SEAM, 0.7);
+  g.fillCircle(15, 15, 15);
+  g.fillStyle(STEEL_LO, 0.75);
+  g.fillCircle(20, 20, 11);
+  g.fillStyle(STEEL, 1);
+  g.fillCircle(13, 12, 12);
+  g.fillStyle(STEEL_HI, 0.6);
+  g.fillCircle(9, 8, 5);
+  // visor slit
+  g.fillStyle(0x0a0e14, 1);
+  g.fillRoundedRect(8, 13, 17, 5, 2);
+  g.fillStyle(SEAM, 1);
+  g.fillRoundedRect(10, 14.5, 12, 2, 1);
+  g.fillStyle(SEAM_HOT, 1);
+  g.fillCircle(19, 15.5, 1.4);
+  // rim arc
+  g.lineStyle(1.8, 0xd8e4ec, 0.6);
   g.beginPath();
-  g.arc(6, 6, 4.5, Math.PI * 0.8, Math.PI * 1.6);
+  g.arc(15, 15, 13, Math.PI * 0.8, Math.PI * 1.5);
   g.strokePath();
-  g.fillStyle(SEAM, 1);
-  g.fillCircle(8, 5, 1.6); // one calm eye
-  g.generateTexture('ch2-aug-head', 12, 12);
+  // neck seal
+  g.fillStyle(STEEL_LO, 1);
+  g.fillRect(9, 27, 12, 3);
+  g.generateTexture('ch2-aug-head', 30, 30);
   g.clear();
 
+  // arm: two segments, hydraulic spine, glowing joint band
   g.fillStyle(STEEL, 1);
-  g.fillRoundedRect(0, 0, 5, 18, 2);
-  g.lineStyle(1, SEAM, 0.6);
-  g.lineBetween(1, 2, 1, 16);
+  g.fillRoundedRect(0, 0, 13, 45, 4);
+  g.fillStyle(STEEL_LO, 0.7);
+  g.fillRoundedRect(8, 1, 5, 43, 2);
   g.fillStyle(STEEL_HI, 1);
-  g.fillRect(0, 8, 5, 2); // joint band
-  g.generateTexture('ch2-aug-arm', 5, 18);
+  g.fillRect(0, 20, 13, 5); // joint band
+  g.fillStyle(STEEL_LO, 1);
+  g.fillRect(3, 22, 7, 1.6);
+  g.lineStyle(1.6, SEAM, 0.75);
+  g.lineBetween(2, 3, 2, 42);
+  g.lineStyle(1, STEEL_HI, 0.8);
+  g.lineBetween(5, 4, 5, 18);
+  g.lineBetween(5, 27, 5, 41);
+  g.fillStyle(SEAM, 0.9);
+  g.fillCircle(6.5, 22.5, 1.6); // joint diode
+  g.generateTexture('ch2-aug-arm', 13, 45);
   g.clear();
 
+  // leg: thigh/shin split, knee band, foot wedge
   g.fillStyle(STEEL, 1);
-  g.fillRoundedRect(0, 0, 6, 20, 2);
-  g.lineStyle(1, SEAM, 0.6);
-  g.lineBetween(1, 2, 1, 18);
+  g.fillRoundedRect(0, 0, 15, 50, 4);
+  g.fillStyle(STEEL_LO, 0.7);
+  g.fillRoundedRect(9, 1, 6, 48, 2);
   g.fillStyle(STEEL_HI, 1);
-  g.fillRect(0, 9, 6, 2);
-  g.generateTexture('ch2-aug-leg', 6, 20);
+  g.fillRect(0, 23, 15, 5); // knee band
+  g.fillStyle(STEEL_LO, 1);
+  g.fillRect(4, 25, 8, 1.6);
+  g.lineStyle(1.6, SEAM, 0.75);
+  g.lineBetween(2, 3, 2, 47);
+  g.fillStyle(STEEL_HI, 0.9);
+  g.fillRect(1, 44, 13, 5); // foot wedge
+  g.fillStyle(SEAM, 0.9);
+  g.fillCircle(7.5, 25.5, 1.6);
+  g.generateTexture('ch2-aug-leg', 15, 50);
   g.clear();
 
   // Slash crescent: white-hot leading edge with a cold core — the blade's
   // afterimage, not a rectangle. Centered, swept rightward (mirror with scaleX).
-  g.lineStyle(8, 0xd8f4fc, 0.95);
+  g.lineStyle(20, 0xd8f4fc, 0.95);
   g.beginPath();
-  g.arc(40, 40, 24, -1.05, 1.05);
+  g.arc(100, 100, 60, -1.05, 1.05);
   g.strokePath();
-  g.lineStyle(3.5, 0x27e0f5, 0.9);
+  g.lineStyle(9, 0x27e0f5, 0.9);
   g.beginPath();
-  g.arc(40, 40, 29, -0.9, 0.9);
+  g.arc(100, 100, 72, -0.9, 0.9);
   g.strokePath();
-  g.lineStyle(2, 0xffffff, 0.8);
+  g.lineStyle(5, 0xffffff, 0.8);
   g.beginPath();
-  g.arc(40, 40, 19, -0.7, 0.7);
+  g.arc(100, 100, 48, -0.7, 0.7);
   g.strokePath();
-  g.generateTexture('ch2-crescent', 80, 80);
+  // sparks trailing the tip
+  g.fillStyle(0xffffff, 0.9);
+  g.fillCircle(152, 72, 2.4);
+  g.fillCircle(158, 100, 3);
+  g.fillCircle(152, 128, 2.4);
+  g.fillStyle(0x27e0f5, 0.8);
+  g.fillCircle(146, 84, 1.6);
+  g.fillCircle(146, 116, 1.6);
+  g.generateTexture('ch2-crescent', 200, 200);
   g.clear();
 
   // Cyberpsycho: patchwork of flesh and rejects, one red eye.
   const FLESH = 0x8a736c;
+  const FLESH_HI = 0xa88e85;
   const FLESH_LO = 0x4d3c38;
   g.fillStyle(FLESH, 1);
-  g.fillRoundedRect(0, 0, 16, 26, 4);
+  g.fillRoundedRect(0, 0, 40, 65, 9);
+  g.fillStyle(FLESH_LO, 0.6);
+  g.fillRoundedRect(28, 2, 11, 61, 6);
+  g.fillStyle(FLESH_HI, 0.4);
+  g.fillRoundedRect(4, 4, 12, 20, 4);
+  // metal grafts: right chest plate, left hip — bolted, not grown
   g.fillStyle(STEEL, 1);
-  g.fillRect(8, 0, 8, 13); // metal plate graft, right chest
-  g.fillRect(0, 16, 7, 10); // left hip
-  g.lineStyle(1, FLESH_LO, 0.8);
-  g.lineBetween(8, 2, 8, 11); // graft seam
-  g.lineStyle(1, STEEL_HI, 0.5);
-  g.lineBetween(9, 2, 14, 2);
-  g.generateTexture('ch2-psy-body', 16, 26);
+  g.fillRect(20, 0, 20, 32);
+  g.fillRect(0, 40, 17, 25);
+  g.fillStyle(STEEL_HI, 0.6);
+  g.fillRect(22, 2, 8, 28);
+  g.lineStyle(1.4, STEEL_LO, 0.9);
+  g.lineBetween(20, 0, 20, 32);
+  g.lineBetween(0, 40, 17, 40);
+  // graft seam: angry red flesh at the metal's edge
+  g.lineStyle(2, 0x6e1f24, 0.85);
+  g.lineBetween(19, 2, 19, 30);
+  g.lineBetween(2, 39, 15, 39);
+  // rivets on the plate
+  g.fillStyle(STEEL_HI, 1);
+  g.fillCircle(24, 5, 1.8);
+  g.fillCircle(34, 5, 1.8);
+  g.fillCircle(24, 27, 1.8);
+  g.fillCircle(34, 27, 1.8);
+  // stitches down the sternum
+  g.lineStyle(1.5, FLESH_LO, 0.9);
+  g.lineBetween(8, 10, 8, 34);
+  g.lineStyle(1.5, 0x2a2020, 0.9);
+  for (let i = 0; i < 5; i++) g.lineBetween(5, 12 + i * 5, 11, 14 + i * 5);
+  g.generateTexture('ch2-psy-body', 40, 65);
   g.clear();
 
   g.fillStyle(FLESH, 1);
-  g.fillCircle(6, 6, 6);
+  g.fillCircle(15, 15, 15);
+  g.fillStyle(FLESH_LO, 0.55);
+  g.fillCircle(20, 20, 11);
+  g.fillStyle(FLESH, 1);
+  g.fillCircle(13, 12, 12);
+  // metal skullcap, riveted
   g.fillStyle(STEEL, 1);
-  g.fillCircle(8, 5, 3.5); // metal skullcap
-  g.fillStyle(0xff2d3c, 1); // the red eye
-  g.fillCircle(7, 6, 1.6);
-  g.generateTexture('ch2-psy-head', 12, 12);
+  g.fillCircle(20, 12, 9);
+  g.fillStyle(STEEL_HI, 0.7);
+  g.fillCircle(18, 10, 4);
+  g.fillStyle(STEEL_HI, 1);
+  g.fillCircle(14, 8, 1.4);
+  g.fillCircle(25, 10, 1.4);
+  g.fillStyle(0x6e1f24, 0.8);
+  g.fillCircle(12, 14, 3); // torn scalp at the cap's edge
+  // the red eye — halo baked in
+  g.fillStyle(0xff2d3c, 0.35);
+  g.fillCircle(17, 16, 7);
+  g.fillStyle(0xff2d3c, 1);
+  g.fillCircle(17, 16, 3.4);
+  g.fillStyle(0xffd0d4, 1);
+  g.fillCircle(17, 16, 1.4);
+  g.generateTexture('ch2-psy-head', 30, 30);
   g.clear();
 
   g.fillStyle(FLESH, 1);
-  g.fillRoundedRect(0, 0, 6, 19, 2);
+  g.fillRoundedRect(0, 0, 15, 48, 4);
+  g.fillStyle(FLESH_LO, 0.5);
+  g.fillRoundedRect(9, 1, 6, 46, 2);
+  g.fillStyle(FLESH_HI, 0.45);
+  g.fillRect(2, 3, 4, 20);
+  // metal forearm / shin graft
   g.fillStyle(STEEL, 1);
-  g.fillRect(0, 10, 6, 9); // metal forearm / shin graft
-  g.lineStyle(1, FLESH_LO, 0.7);
-  g.lineBetween(1, 2, 1, 9);
-  g.generateTexture('ch2-psy-limb', 6, 19);
+  g.fillRect(0, 25, 15, 23);
+  g.fillStyle(STEEL_HI, 0.6);
+  g.fillRect(2, 27, 5, 19);
+  g.lineStyle(2, 0x6e1f24, 0.85);
+  g.lineBetween(1, 24, 14, 24); // graft seam
+  g.lineStyle(1.4, FLESH_LO, 0.8);
+  g.lineBetween(3, 4, 3, 22);
+  g.fillStyle(STEEL_HI, 1);
+  g.fillCircle(4, 29, 1.5);
+  g.fillCircle(11, 29, 1.5);
+  g.generateTexture('ch2-psy-limb', 15, 48);
   g.clear();
 
-  // Metal shard: feeds the parasite.
+  // Metal shard: feeds the parasite. Jagged plate with a torn bright edge.
   g.fillStyle(STEEL_HI, 1);
   g.beginPath();
-  g.moveTo(0, 3);
-  g.lineTo(5, 0);
-  g.lineTo(8, 4);
-  g.lineTo(6, 8);
-  g.lineTo(1, 7);
+  g.moveTo(0, 8);
+  g.lineTo(13, 0);
+  g.lineTo(20, 10);
+  g.lineTo(15, 20);
+  g.lineTo(3, 17);
   g.closePath();
   g.fillPath();
-  g.lineStyle(1, SEAM, 0.5);
-  g.lineBetween(2, 3, 6, 4);
-  g.generateTexture('ch2-shard', 8, 8);
+  g.fillStyle(STEEL, 0.85);
+  g.beginPath();
+  g.moveTo(5, 9);
+  g.lineTo(13, 4);
+  g.lineTo(17, 10);
+  g.lineTo(12, 16);
+  g.closePath();
+  g.fillPath();
+  g.lineStyle(1.6, SEAM, 0.7);
+  g.lineBetween(5, 8, 15, 10);
+  g.lineStyle(1.2, 0xd8e4ec, 0.6);
+  g.lineBetween(2, 7, 12, 1);
+  g.generateTexture('ch2-shard', 20, 20);
   g.clear();
 
-  // Anchor ring: the fixed glow the arm grabs.
-  g.lineStyle(3, SEAM, 1);
-  g.strokeCircle(12, 12, 9);
-  g.lineStyle(1.5, 0xd8f4fc, 0.9);
-  g.strokeCircle(12, 12, 6);
-  g.fillStyle(SEAM, 0.35);
-  g.fillCircle(12, 12, 5);
-  g.generateTexture('ch2-anchor', 24, 24);
+  // Anchor ring: the fixed glow the arm grabs — twin rings + core, halo baked.
+  g.fillStyle(SEAM, 0.14);
+  g.fillCircle(30, 30, 28);
+  g.lineStyle(7, SEAM, 1);
+  g.strokeCircle(30, 30, 22);
+  g.lineStyle(3.5, 0xd8f4fc, 0.95);
+  g.strokeCircle(30, 30, 15);
+  g.fillStyle(SEAM, 0.4);
+  g.fillCircle(30, 30, 12);
+  g.fillStyle(SEAM_HOT, 0.9);
+  g.fillCircle(30, 30, 5);
+  g.generateTexture('ch2-anchor', 60, 60);
   g.clear();
 
   // Gib: flesh-metal chunk for kills.
   g.fillStyle(FLESH, 1);
   g.beginPath();
-  g.moveTo(1, 2);
-  g.lineTo(7, 0);
-  g.lineTo(10, 5);
-  g.lineTo(6, 10);
-  g.lineTo(0, 7);
+  g.moveTo(3, 5);
+  g.lineTo(18, 0);
+  g.lineTo(25, 12);
+  g.lineTo(15, 25);
+  g.lineTo(0, 18);
   g.closePath();
   g.fillPath();
+  g.fillStyle(FLESH_HI, 0.5);
+  g.fillCircle(9, 8, 5);
   g.fillStyle(STEEL, 1);
-  g.fillRect(4, 3, 5, 4);
-  g.fillStyle(0x6e1f24, 0.8);
-  g.fillCircle(3, 6, 2);
-  g.generateTexture('ch2-gib', 10, 10);
+  g.fillRect(10, 8, 12, 10);
+  g.fillStyle(STEEL_HI, 0.6);
+  g.fillRect(12, 9, 5, 8);
+  g.fillStyle(0x8e1f24, 0.9);
+  g.fillCircle(8, 15, 5);
+  g.fillStyle(0x5c1216, 1);
+  g.fillCircle(10, 17, 2.5);
+  g.generateTexture('ch2-gib', 25, 25);
   g.clear();
 
-  // Metal arm (the extendable one): segmented bar.
+  // Metal arm (the extendable one): segmented telescoping bar, claw end.
   g.fillStyle(STEEL, 1);
-  g.fillRect(0, 0, 24, 5);
-  g.lineStyle(1, SEAM, 0.7);
-  g.lineBetween(2, 1, 22, 1);
+  g.fillRect(0, 0, 60, 12);
+  g.fillStyle(STEEL_LO, 0.8);
+  g.fillRect(0, 7, 60, 5);
+  g.fillStyle(STEEL_HI, 0.8);
+  g.fillRect(0, 1, 60, 3);
+  // segment seams
+  g.lineStyle(1.6, STEEL_LO, 1);
+  for (let x = 12; x < 50; x += 12) g.lineBetween(x, 0, x, 12);
+  g.lineStyle(1.6, SEAM, 0.8);
+  g.lineBetween(2, 2.5, 58, 2.5);
+  // claw end
   g.fillStyle(STEEL_HI, 1);
-  g.fillRect(20, 0, 4, 5); // claw end
-  g.generateTexture('ch2-extarm', 24, 5);
+  g.fillRect(50, 0, 10, 12);
+  g.fillStyle(SEAM_HOT, 0.9);
+  g.fillCircle(55, 6, 2.2);
+  g.generateTexture('ch2-extarm', 60, 12);
   g.clear();
 
   // Ernest's prototype emitter — salvaged from what's left of him.
   g.fillStyle(STEEL, 1);
-  g.fillRoundedRect(0, 4, 26, 7, 2); // receiver
-  g.fillRect(20, 2, 10, 4); // barrel shroud
+  g.fillRoundedRect(0, 10, 65, 17, 5); // receiver
+  g.fillRect(50, 5, 25, 10); // barrel shroud
+  g.fillStyle(STEEL_LO, 0.8);
+  g.fillRect(0, 20, 65, 7);
   g.fillStyle(STEEL_HI, 1);
-  g.fillRect(28, 3, 3, 5); // muzzle
+  g.fillRect(70, 7, 8, 12); // muzzle
+  g.fillStyle(STEEL_HI, 0.6);
+  g.fillRect(4, 12, 30, 4);
   g.fillStyle(SEAM, 1);
-  g.fillRect(6, 11, 5, 7); // grip
+  g.fillRect(15, 27, 12, 17); // grip
+  g.fillStyle(STEEL_LO, 1);
+  g.fillRect(15, 34, 12, 3);
+  g.fillRect(15, 40, 12, 3);
+  // the cell, still warm
+  g.fillStyle(0x9fd8e8, 0.35);
+  g.fillRoundedRect(26, 9, 24, 12, 3);
   g.fillStyle(0x9fd8e8, 1);
-  g.fillRect(12, 5, 8, 3); // the cell, still warm
-  g.generateTexture('ch2-lasergun', 31, 18);
+  g.fillRoundedRect(30, 12, 16, 6, 2);
+  g.fillStyle(0xe8fbff, 1);
+  g.fillRect(34, 13, 8, 3);
+  g.generateTexture('ch2-lasergun', 78, 45);
   g.destroy();
 }
 
@@ -236,12 +405,12 @@ export class AugPlayer {
 
     this.fig = scene.add.container(this.p.x, this.p.y).setDepth(5);
     this.parts = {
-      body: scene.add.image(0, -32, 'ch2-aug-body'),
-      head: scene.add.image(1, -52, 'ch2-aug-head'),
-      armL: scene.add.image(-10, -44, 'ch2-aug-arm').setOrigin(0.5, 0.08),
-      armR: scene.add.image(10, -44, 'ch2-aug-arm').setOrigin(0.5, 0.08),
-      legL: scene.add.image(-4, -20, 'ch2-aug-leg').setOrigin(0.5, 0.05),
-      legR: scene.add.image(4, -20, 'ch2-aug-leg').setOrigin(0.5, 0.05),
+      body: scene.add.image(0, -32, 'ch2-aug-body').setScale(0.4),
+      head: scene.add.image(1, -52, 'ch2-aug-head').setScale(0.4),
+      armL: scene.add.image(-10, -44, 'ch2-aug-arm').setOrigin(0.5, 0.08).setScale(0.4),
+      armR: scene.add.image(10, -44, 'ch2-aug-arm').setOrigin(0.5, 0.08).setScale(0.4),
+      legL: scene.add.image(-4, -20, 'ch2-aug-leg').setOrigin(0.5, 0.05).setScale(0.4),
+      legR: scene.add.image(4, -20, 'ch2-aug-leg').setOrigin(0.5, 0.05).setScale(0.4),
     };
     this.fig.add(Object.values(this.parts));
 
@@ -398,7 +567,7 @@ export class AugPlayer {
     const a = Math.random() * Math.PI * 2;
     const r = 6 + Math.random() * 10;
     const s = this.scene.add.image(Math.cos(a) * r, -34 + Math.sin(a) * r * 1.4, 'ch2-shard');
-    s.setRotation(Math.random() * 6).setScale(0.9);
+    s.setRotation(Math.random() * 6).setScale(0.36);
     this.shardLayer.add(s);
     return this.shards;
   }
@@ -437,14 +606,14 @@ export class Psycho {
 
     this.fig = scene.add.container(this.p.x, this.p.y).setDepth(5);
     this.parts = {
-      body: scene.add.image(0, -32, 'ch2-psy-body'),
-      head: scene.add.image(1, -52, 'ch2-psy-head'),
-      armL: scene.add.image(-10, -44, 'ch2-psy-limb').setOrigin(0.5, 0.08),
-      armR: scene.add.image(10, -44, 'ch2-psy-limb').setOrigin(0.5, 0.08),
-      legL: scene.add.image(-4, -20, 'ch2-psy-limb').setOrigin(0.5, 0.05),
+      body: scene.add.image(0, -32, 'ch2-psy-body').setScale(0.4),
+      head: scene.add.image(1, -52, 'ch2-psy-head').setScale(0.4),
+      armL: scene.add.image(-10, -44, 'ch2-psy-limb').setOrigin(0.5, 0.08).setScale(0.4),
+      armR: scene.add.image(10, -44, 'ch2-psy-limb').setOrigin(0.5, 0.08).setScale(0.4),
+      legL: scene.add.image(-4, -20, 'ch2-psy-limb').setOrigin(0.5, 0.05).setScale(0.4),
     };
     if (!oneLegged) {
-      this.parts.legR = scene.add.image(4, -20, 'ch2-psy-limb').setOrigin(0.5, 0.05);
+      this.parts.legR = scene.add.image(4, -20, 'ch2-psy-limb').setOrigin(0.5, 0.05).setScale(0.4);
     }
     this.fig.add(Object.values(this.parts));
     if (tint) Object.values(this.parts).forEach((img) => img.setTint(tint));

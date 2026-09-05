@@ -3,6 +3,7 @@ import { GAME_W, GAME_H } from '../../constants.js';
 import { Heightfield, playVoidDeath, synthThud, synthBuzz, makeTorsoTextures } from './torso.js';
 import { AUG_TUNE, PSY_TUNE, makeAugTextures, AugPlayer, Psycho } from './aug.js';
 import { makeVesselVoice } from './vessel.js';
+import { applyLens, addFogBands, addEmbers, addSteam } from './fx.js';
 
 /**
  * L2-2 「拼接」 — THE UPGRADE, level two of three (docs/chapter2-redesign.md §4).
@@ -163,6 +164,7 @@ export default class Level22Scene extends Phaser.Scene {
       .setDepth(60);
 
     this.buildAttachSite();
+    this.buildAtmosphere();
     // VESSEL rides along in your skull from here on (docs/chapter2-story.md §6).
     this.vessel = makeVesselVoice(this);
     // One take from L2-1: the prosthetic's cold glow fills the frame, then
@@ -175,7 +177,30 @@ export default class Level22Scene extends Phaser.Scene {
     this.tweens.add({ targets: veil, alpha: 0, duration: 750, onComplete: () => veil.destroy() });
   }
 
-  // ---------------------------------------------------------------- backdrop
+  // ------------------------------------------------------------- atmosphere
+
+  buildAtmosphere() {
+    applyLens(this);
+    // Ground mist — the deep places breathe.
+    addFogBands(this, { count: 4, y0: 420, y1: 505, tint: 0x3fbf8e, alpha: 0.04, depth: 3, sf: 0.7 });
+    // Steam vents along the run.
+    [1020, 2600, 4300, 5700].forEach((sx) => {
+      const gy = this.field.groundAt(sx);
+      if (gy !== null) addSteam(this, { x: sx, y: gy - 6, depth: 3 });
+    });
+    // The crucible below the foundry shaft: a furnace glow you fall TOWARD.
+    const glow = this.add
+      .image(6045, 830, 'ch2-fx-glow')
+      .setScale(7, 3)
+      .setTint(0xff7a2c)
+      .setAlpha(0.4)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(1);
+    this.tweens.add({ targets: glow, alpha: 0.62, scale: { from: 7, to: 8 }, duration: 2100, yoyo: true, repeat: -1 });
+    addEmbers(this, { x: 6045, y: 780, spread: 190, depth: 2, frequency: 70 });
+  }
+
+
 
   buildBackdrop() {
     // Underground dark, rust and green (SOMA palette, §7).
@@ -253,7 +278,7 @@ export default class Level22Scene extends Phaser.Scene {
 
     // Conveyor hooks with dangling arms (decor anim).
     [2050, 3350, 4550].forEach((hx, i) => {
-      const arm = this.add.image(hx, 150, 'ch2-psy-limb').setOrigin(0.5, 0).setDepth(2).setAlpha(0.7);
+      const arm = this.add.image(hx, 150, 'ch2-psy-limb').setOrigin(0.5, 0).setDepth(2).setAlpha(0.7).setScale(0.4);
       this.add.graphics().lineStyle(1, 0x2a3442, 1).setDepth(2).lineBetween(hx, 60, hx, 150);
       this.tweens.add({
         targets: arm,
@@ -268,7 +293,7 @@ export default class Level22Scene extends Phaser.Scene {
 
   buildAnchors() {
     this.anchorImgs = L2.anchors.map((a) => {
-      const img = this.add.image(a.x, a.y, 'ch2-anchor').setDepth(3);
+      const img = this.add.image(a.x, a.y, 'ch2-anchor').setDepth(3).setScale(0.4);
       const glow = this.add
         .image(a.x, a.y, 'ch2-mote')
         .setScale(5)
@@ -299,7 +324,7 @@ export default class Level22Scene extends Phaser.Scene {
   }
 
   spawnShard(x, y, idle = false) {
-    const img = this.add.image(x, y, 'ch2-shard').setDepth(3);
+    const img = this.add.image(x, y, 'ch2-shard').setDepth(3).setScale(0.4);
     const s = { img, x, y, vx: 0, vy: 0, state: idle ? 'idle' : 'fall' };
     if (idle) this.tweens.add({ targets: img, y: y - 4, duration: 1400, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
     return s;
@@ -379,7 +404,7 @@ export default class Level22Scene extends Phaser.Scene {
     for (let i = 0; i < AUG_TUNE.lives; i++) {
       const img = this.add
         .image(GAME_W - 20 - i * 22, 20, 'ch2-aug-body')
-        .setScale(0.65)
+        .setScale(0.26)
         .setScrollFactor(0)
         .setDepth(60);
       this.lifeImgs.push(img);
@@ -394,7 +419,7 @@ export default class Level22Scene extends Phaser.Scene {
 
   buildAttachSite() {
     // The torso rolls in from the left; the prosthetic waits where L2-1 ended.
-    this.siteBlob = this.add.image(60, L2.ground - 15, 'ch2-blob').setDepth(5);
+    this.siteBlob = this.add.image(60, L2.ground - 15, 'ch2-blob').setDepth(5).setScale(0.5);
     this.siteProsthetic = this.add.image(360, L2.ground - 20, 'ch2-prosthetic').setDepth(4);
     this.siteGlow = this.add
       .image(360, L2.ground - 20, 'ch2-mote')
@@ -662,7 +687,7 @@ export default class Level22Scene extends Phaser.Scene {
 
   /** Ernest's emitter hits the ground where he burst. */
   dropLaserGun(x, y) {
-    const img = this.add.image(x, y - 16, 'ch2-lasergun').setDepth(4).setRotation(-0.4);
+    const img = this.add.image(x, y - 16, 'ch2-lasergun').setDepth(4).setRotation(-0.4).setScale(0.4);
     const glow = this.add
       .image(x, y - 16, 'ch2-mote')
       .setScale(4)
@@ -847,7 +872,7 @@ export default class Level22Scene extends Phaser.Scene {
     const cx = p.x + fx * (stage === 3 ? 42 : 36);
     const cy = stage === 3 ? p.y - 44 : p.y - 34;
     const baseRot = [0, fx * 0.15, fx * 2.6, fx * 1.2][stage];
-    const sc = [0, 0.85, 0.95, 1.55][stage];
+    const sc = [0, 0.34, 0.38, 0.62][stage];
     const arc = this.add
       .image(cx, cy, 'ch2-crescent')
       .setDepth(7)
@@ -1131,6 +1156,7 @@ export default class Level22Scene extends Phaser.Scene {
         gravityY: 1500,
         lifespan: 1400,
         quantity: 14,
+        scale: 0.4,
         rotate: { min: -400, max: 400 },
         emitting: false,
       })
@@ -1453,7 +1479,7 @@ export default class Level22Scene extends Phaser.Scene {
       arm.setPosition(p.x, p.y - 40);
       arm.setRotation(Math.atan2(a.y - (p.y - 40), a.x - p.x));
       arm.setFlipY(false);
-      arm.setScale(dist / 24, 1);
+      arm.setScale(dist / 60, 0.4);
       return;
     }
 
@@ -1462,7 +1488,7 @@ export default class Level22Scene extends Phaser.Scene {
       const len = u < 0.5 ? u * 2 * 150 : (1 - u) * 2 * 150; // out, then back
       arm.setPosition(p.x, p.y - 40);
       arm.setRotation(st.dir < 0 ? Math.PI : 0);
-      arm.setScale(Math.max(0.1, len) / 24, 1);
+      arm.setScale(Math.max(0.1, len) / 60, 0.4);
       if (u >= 1) {
         this.armState = null;
         arm.setVisible(false);
@@ -1531,7 +1557,7 @@ export default class Level22Scene extends Phaser.Scene {
           ? -44 + Math.random() * 22
           : -56 + Math.random() * 10; // shoulder mound
         const sh = this.add.image(sx, sy, 'ch2-shard');
-        sh.setRotation(Math.random() * 6).setScale(1.1);
+        sh.setRotation(Math.random() * 6).setScale(0.44);
         this.player.shardLayer.add(sh);
       }
       synthThud(this, { freq: 110, gain: 0.2, dur: 0.3 });
@@ -1575,7 +1601,7 @@ export default class Level22Scene extends Phaser.Scene {
       synthBuzz(this, { freq: 90, dur: 0.8, gain: 0.2 });
       const armImg = this.add
         .image(-40, 120, 'ch2-aug-arm')
-        .setScale(3)
+        .setScale(1.2)
         .setRotation(0.8)
         .setScrollFactor(0)
         .setDepth(80);

@@ -8,6 +8,7 @@ import {
   synthBuzz,
 } from './torso.js';
 import { makeAugTextures, Psycho } from './aug.js';
+import { applyLens, addFogBands, addEmbers } from './fx.js';
 import { makeVesselVoice } from './vessel.js';
 
 /**
@@ -128,8 +129,8 @@ class AggregatePlayer {
     this.invulnUntil = 0;
 
     this.fig = scene.add.container(this.p.x, this.p.y).setDepth(5);
-    this.body = scene.add.image(0, -50, 'ch2-aug-body').setScale(2.2);
-    this.head = scene.add.image(3, -92, 'ch2-aug-head').setScale(1.8);
+    this.body = scene.add.image(0, -50, 'ch2-aug-body').setScale(0.88);
+    this.head = scene.add.image(3, -92, 'ch2-aug-head').setScale(0.72);
 
     // The crawling shell: shards in a slow orbit, each with its own jitter.
     this.shellRing = scene.add.container(0, -52);
@@ -139,7 +140,7 @@ class AggregatePlayer {
       const rad = 40 + (i % 3) * 8;
       const img = scene.add
         .image(Math.cos(ang) * rad, Math.sin(ang) * rad * 1.15, 'ch2-shard')
-        .setScale(1.7)
+        .setScale(0.68)
         .setRotation(ang * 2.3)
         .setVisible(false);
       this.shellRing.add(img);
@@ -413,6 +414,43 @@ export default class Level23Scene extends Phaser.Scene {
         .setDepth(3);
       this.tweens.add({ targets: m, x: m.x + 120, duration: 14000 + i * 3000, yoyo: true, repeat: -1 });
     }
+
+    // The lens first — it bakes the fx textures everything below uses.
+    applyLens(this);
+
+    // The district is still burning: fire glows on the ruined skyline,
+    // flickering against the pre-dawn grey.
+    [320, 1150, 2100, 3050].forEach((fx_, i) => {
+      const fire = this.add
+        .image(fx_, 430 - (i % 2) * 60, 'ch2-fx-glow')
+        .setScale(1.6, 1.1)
+        .setTint(0xff7a2c)
+        .setAlpha(0.3)
+        .setBlendMode(Phaser.BlendModes.ADD)
+        .setScrollFactor(0.35)
+        .setDepth(1.5);
+      this.tweens.add({
+        targets: fire,
+        alpha: { from: 0.18, to: 0.42 },
+        scaleX: { from: 1.4, to: 1.8 },
+        duration: 300 + i * 90,
+        yoyo: true,
+        repeat: -1,
+      });
+      addEmbers(this, { x: fx_, y: 450 - (i % 2) * 60, spread: 40, depth: 2, frequency: 700 });
+    });
+
+    // The coming sun, smothered: a warm smear behind the ruins.
+    this.add
+      .image(GAME_W / 2, 445, 'ch2-fx-glow')
+      .setScale(14, 2.2)
+      .setTint(0x8a5a40)
+      .setAlpha(0.16)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setScrollFactor(0.1)
+      .setDepth(1);
+
+    addFogBands(this, { count: 3, y0: 400, y1: 465, tint: 0x8a94b0, alpha: 0.04, depth: 3, sf: 0.55 });
   }
 
   buildPlatforms() {
@@ -468,7 +506,7 @@ export default class Level23Scene extends Phaser.Scene {
       this.lifeImgs.push(
         this.add
           .image(GAME_W - 20 - i * 22, 20, 'ch2-aug-body')
-          .setScale(0.65)
+          .setScale(0.26)
           .setScrollFactor(0)
           .setDepth(60),
       );
@@ -497,7 +535,7 @@ export default class Level23Scene extends Phaser.Scene {
         const fromLeft = i % 2 === 0;
         const fly = this.add
           .image(px + (fromLeft ? -560 : 560), 120 + Math.random() * 300, 'ch2-shard')
-          .setScale(1.7)
+          .setScale(0.68)
           .setRotation(Math.random() * 6)
           .setDepth(6);
         synthBuzz(this, { freq: 300 + i * 18, dur: 0.08, gain: 0.06 });
@@ -683,6 +721,7 @@ export default class Level23Scene extends Phaser.Scene {
         speed: { min: 120, max: 380 },
         lifespan: { min: 300, max: 800 },
         quantity: shed,
+        scale: 0.4,
         rotate: { min: -300, max: 300 },
         emitting: false,
       })
@@ -847,6 +886,7 @@ export default class Level23Scene extends Phaser.Scene {
         gravityY: 1500,
         lifespan: 1400,
         quantity: 14,
+        scale: 0.4,
         rotate: { min: -400, max: 400 },
         emitting: false,
       })
@@ -1015,7 +1055,7 @@ export default class Level23Scene extends Phaser.Scene {
       if (!s.img.visible) return;
       s.img.setVisible(false);
       const a = (i / this.player.shell.length) * Math.PI * 2 + Math.random() * 0.4;
-      const shard = this.add.image(cx, cy, 'ch2-shard').setScale(1.7).setRotation(s.img.rotation).setDepth(7);
+      const shard = this.add.image(cx, cy, 'ch2-shard').setScale(0.68).setRotation(s.img.rotation).setDepth(7);
       this.tweens.add({
         targets: shard,
         x: cx + Math.cos(a) * 320,
@@ -1103,7 +1143,7 @@ export default class Level23Scene extends Phaser.Scene {
     // Far away, the next prosthetic rises into the gate's cold light.
     const nextBody = this.add
       .image(L3.gateX + 20, L3.ground + 60, 'ch2-aug-body')
-      .setScale(1.5)
+      .setScale(0.6)
       .setAlpha(0)
       .setDepth(3);
     const nextGlow = this.add

@@ -10,6 +10,7 @@ import {
   synthBuzz,
 } from './torso.js';
 import { makeVesselVoice } from './vessel.js';
+import { applyLens, addFogBands, addNeonSign, addShaft, addBeacon, addEmbers, addSteam } from './fx.js';
 
 /**
  * L2-1 「切除」 — THE UPGRADE, level one of three.
@@ -181,6 +182,8 @@ export default class Level21Scene extends Phaser.Scene {
     this.buildHumanoid();
     this.buildPromptChips();
     this.buildOrSet();
+    // The surgical lamp's cone over the table — the last light he sees as meat.
+    addShaft(this, { x: OR.tableX, y: 150, color: 0xcfe8f2, alpha: 0.14, scaleX: 1.5, scaleY: 0.9, depth: 3.5 });
 
     this.vessel = makeVesselVoice(this); // story bible §5: customer-service register
     this.vesselSaid = new Set();
@@ -203,6 +206,9 @@ export default class Level21Scene extends Phaser.Scene {
     this.cameras.main.setZoom(1.7);
     this.tweens.add({ targets: this.cameras.main, zoom: 1, duration: 800, ease: 'Quad.easeOut' });
 
+    // The lens: vignette + bloom, over every act of the level.
+    applyLens(this);
+
     this.hint = this.add
       .text(GAME_W / 2, GAME_H - 22, '', {
         fontFamily: 'ui-monospace, Menlo, monospace',
@@ -221,34 +227,79 @@ export default class Level21Scene extends Phaser.Scene {
 
     // Humanoid: dark silhouette body parts with a cold rim — limbs are
     // separate textures because the cutscene takes them one by one.
+    // Baked at 2.5x, drawn at 0.4.
     const BODY = 0x232b36;
+    const BODY_LO = 0x151a22;
+    const BODY_HI = 0x36404e;
     const RIM = 0x7fd4e8;
+    const SKIN = 0xa08a83;
+    // body: a cheap rain coat — collar, zip line, belt shadow
     g.fillStyle(BODY, 1);
-    g.fillRoundedRect(0, 0, 14, 26, 4);
-    g.lineStyle(1, RIM, 0.5);
-    g.lineBetween(1, 3, 1, 23);
-    g.generateTexture('ch2-hu-body', 14, 26);
+    g.fillRoundedRect(0, 0, 35, 65, 9);
+    g.fillStyle(BODY_LO, 0.85);
+    g.fillRoundedRect(24, 2, 10, 61, 5);
+    g.fillStyle(BODY_HI, 0.7);
+    g.fillRoundedRect(3, 3, 10, 26, 4);
+    // collar
+    g.fillStyle(BODY_LO, 1);
+    g.fillTriangle(4, 0, 14, 0, 9, 8);
+    g.fillTriangle(31, 0, 21, 0, 26, 8);
+    // zip line
+    g.lineStyle(1.6, BODY_LO, 0.9);
+    g.lineBetween(17, 6, 17, 60);
+    g.lineStyle(1, BODY_HI, 0.7);
+    g.lineBetween(18.5, 6, 18.5, 60);
+    // belt shadow
+    g.fillStyle(BODY_LO, 0.8);
+    g.fillRect(2, 46, 31, 5);
+    // cold rim
+    g.lineStyle(2, RIM, 0.55);
+    g.lineBetween(2, 6, 2, 58);
+    g.generateTexture('ch2-hu-body', 35, 65);
     g.clear();
 
+    // head: hair, pale face edge, one calm eye — the AI is already watching
     g.fillStyle(BODY, 1);
-    g.fillCircle(6, 6, 6);
-    g.fillStyle(0x9fd8e8, 0.9); // one calm eye — the AI is already watching
-    g.fillCircle(8, 5, 1.4);
-    g.generateTexture('ch2-hu-head', 12, 12);
+    g.fillCircle(15, 15, 15);
+    g.fillStyle(SKIN, 0.85);
+    g.fillCircle(18, 17, 9); // face catching the clinic's light
+    g.fillStyle(BODY, 1);
+    g.fillCircle(12, 10, 11); // hair mass over the top
+    g.fillStyle(BODY_HI, 0.6);
+    g.fillCircle(10, 7, 4);
+    g.fillStyle(0x9fd8e8, 0.9);
+    g.fillCircle(20, 15, 2.2);
+    g.lineStyle(1.6, RIM, 0.5);
+    g.beginPath();
+    g.arc(15, 15, 13.5, Math.PI * 0.8, Math.PI * 1.5);
+    g.strokePath();
+    g.generateTexture('ch2-hu-head', 30, 30);
     g.clear();
 
+    // arm: coat sleeve + pale hand
     g.fillStyle(BODY, 1);
-    g.fillRoundedRect(0, 0, 5, 16, 2);
-    g.lineStyle(1, RIM, 0.4);
-    g.lineBetween(1, 1, 1, 14);
-    g.generateTexture('ch2-hu-arm', 5, 16);
+    g.fillRoundedRect(0, 0, 13, 40, 4);
+    g.fillStyle(BODY_LO, 0.7);
+    g.fillRoundedRect(8, 1, 5, 38, 2);
+    g.lineStyle(1.6, RIM, 0.45);
+    g.lineBetween(2, 2, 2, 34);
+    g.fillStyle(SKIN, 1);
+    g.fillCircle(6.5, 37, 4.5); // hand
+    g.generateTexture('ch2-hu-arm', 13, 40);
     g.clear();
 
+    // leg: trouser + shoe
     g.fillStyle(BODY, 1);
-    g.fillRoundedRect(0, 0, 6, 18, 2);
-    g.lineStyle(1, RIM, 0.4);
-    g.lineBetween(1, 1, 1, 16);
-    g.generateTexture('ch2-hu-leg', 6, 18);
+    g.fillRoundedRect(0, 0, 15, 45, 4);
+    g.fillStyle(BODY_LO, 0.75);
+    g.fillRoundedRect(9, 1, 6, 43, 2);
+    g.lineStyle(1.6, RIM, 0.45);
+    g.lineBetween(2, 2, 2, 40);
+    g.fillStyle(BODY_LO, 1);
+    g.fillRoundedRect(0, 40, 15, 5, 2); // shoe
+    g.fillStyle(BODY_HI, 0.8);
+    g.fillRect(1, 40, 13, 1.6);
+    g.generateTexture('ch2-hu-leg', 15, 45);
     g.clear();
 
     // Falling debris chunk: jagged concrete with rebar shadow.
@@ -348,6 +399,7 @@ export default class Level21Scene extends Phaser.Scene {
     let x = -60;
     let seed = 7;
     const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const beaconSpots = [];
     while (x < 3600) {
       const w = 90 + rnd() * 140;
       const h = 180 + rnd() * 240;
@@ -362,8 +414,63 @@ export default class Level21Scene extends Phaser.Scene {
           }
         }
       }
+      if (h > 330 && rnd() < 0.6) beaconSpots.push({ x: x + w / 2, y: 500 - h - 4 });
       x += w + 20 + rnd() * 60;
     }
+    // Aviation beacons pulse over the towers — the city never sleeps, it charges.
+    beaconSpots.slice(0, 5).forEach((b, i) => addBeacon(this, { x: b.x, y: b.y, sf: 0.15, period: 2200 + i * 500 }));
+
+    // Mid towers, closer and darker, with bigger windows and neon edge
+    // strips — parallax 0.42, so the skyline has a middle to read against.
+    const mid = this.add.graphics().setScrollFactor(0.42).setDepth(1.5);
+    x = -120;
+    seed = 97;
+    while (x < 5200) {
+      const w = 120 + rnd() * 170;
+      const h = 240 + rnd() * 260;
+      mid.fillStyle(0x080b13, 1);
+      mid.fillRect(x, 500 - h, w, h);
+      for (let wy = 500 - h + 16; wy < 490; wy += 22) {
+        for (let wx = x + 10; wx < x + w - 10; wx += 18) {
+          if (rnd() < 0.16) {
+            const neon = rnd();
+            mid.fillStyle(neon < 0.1 ? 0xff2d78 : neon < 0.28 ? 0x27e0f5 : neon < 0.4 ? 0xffc98a : 0x2a3648, 0.95);
+            mid.fillRect(wx, wy, 8, 10);
+          }
+        }
+      }
+      // edge strip: one face of the tower burns a single color
+      if (rnd() < 0.5) {
+        const strip = rnd() < 0.5 ? 0xff2d78 : 0x27e0f5;
+        mid.fillStyle(strip, 0.55);
+        mid.fillRect(rnd() < 0.5 ? x : x + w - 3, 500 - h, 3, h * (0.4 + rnd() * 0.5));
+      }
+      if (h > 380 && rnd() < 0.5) beaconSpots.push({ x: x + w / 2, y: 500 - h - 4 });
+      x += w + 30 + rnd() * 110;
+    }
+    beaconSpots.slice(5, 9).forEach((b, i) => addBeacon(this, { x: b.x, y: b.y, sf: 0.42, period: 3000 + i * 700 }));
+
+    // Two searchlights sweep the smog — slow, indifferent.
+    [0.9, 2.6].forEach((sx, i) => {
+      const beam = addShaft(this, {
+        x: GAME_W * sx * 0.5,
+        y: -20,
+        color: 0x8a99b8,
+        alpha: 0.05,
+        scaleX: 2.4,
+        scaleY: 2,
+        depth: 1.2,
+        angle: 0.5 + i * 0.6,
+      }).setScrollFactor(0.3);
+      this.tweens.add({
+        targets: beam,
+        angle: -(0.4 + i * 0.5),
+        duration: 14000 + i * 5000,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.inOut',
+      });
+    });
 
     // Clinic sign — where he is walking to.
     const sign = this.add
@@ -386,7 +493,7 @@ export default class Level21Scene extends Phaser.Scene {
       repeatDelay: 2400,
     });
 
-    // Rain.
+    // Rain — two depths: the far drizzle…
     this.add
       .particles(0, 0, 'ch2-mote', {
         x: { min: -20, max: GAME_W + 20 },
@@ -402,6 +509,34 @@ export default class Level21Scene extends Phaser.Scene {
       })
       .setScrollFactor(0)
       .setDepth(40);
+    // …and the near sheet, longer and faster, that streaks past the lens.
+    this.add
+      .particles(0, 0, 'ch2-mote', {
+        x: { min: -30, max: GAME_W + 30 },
+        y: { min: -60, max: -20 },
+        speedY: { min: 900, max: 1250 },
+        speedX: { min: -110, max: -60 },
+        scaleX: 0.12,
+        scaleY: { min: 3.5, max: 6 },
+        alpha: { start: 0.22, end: 0.05 },
+        lifespan: 900,
+        frequency: 60,
+        tint: 0x8fa4bc,
+      })
+      .setScrollFactor(0)
+      .setDepth(41);
+
+    // Ground mist crawling over the rooftop.
+    addFogBands(this, { count: 3, y0: WALK.ground - 70, y1: WALK.ground - 8, tint: 0x5d7089, alpha: 0.05, depth: 3, sf: 0.8 });
+
+    // Wet concrete: the skyline's neon catches in the rooftop's skin.
+    this.add
+      .image(WALK.end / 2, WALK.ground + 8, 'ch2-fx-glow')
+      .setScale(WALK.end / 34, 1.6)
+      .setTint(0x3a5a78)
+      .setAlpha(0.07)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(2.5);
   }
 
   /**
@@ -537,6 +672,8 @@ export default class Level21Scene extends Phaser.Scene {
       .setBlendMode(Phaser.BlendModes.ADD)
       .setDepth(2);
     this.tweens.add({ targets: spill, alpha: 0.22, duration: 1600, yoyo: true, repeat: -1 });
+    // The door's light pours out onto the wet roof — a way out, sold as a way up.
+    addShaft(this, { x: doorX + 45, y: WALK.ground - 128, color: 0x27e0f5, alpha: 0.1, scaleX: 1.4, scaleY: 0.42, depth: 2.2 });
     this.add
       .text(doorX + 45, WALK.ground - 152, 'SURGERY →', {
         fontFamily: 'ui-monospace, Menlo, monospace',
@@ -557,12 +694,12 @@ export default class Level21Scene extends Phaser.Scene {
     // Origin at the feet. Parts are separate so the cutscene can take them.
     this.figure = this.add.container(120, WALK.ground).setDepth(5);
     this.parts = {
-      body: this.add.image(0, -31, 'ch2-hu-body'),
-      head: this.add.image(1, -50, 'ch2-hu-head'),
-      armL: this.add.image(-9, -42, 'ch2-hu-arm').setOrigin(0.5, 0.1),
-      armR: this.add.image(9, -42, 'ch2-hu-arm').setOrigin(0.5, 0.1),
-      legL: this.add.image(-4, -18, 'ch2-hu-leg').setOrigin(0.5, 0.05),
-      legR: this.add.image(4, -18, 'ch2-hu-leg').setOrigin(0.5, 0.05),
+      body: this.add.image(0, -31, 'ch2-hu-body').setScale(0.4),
+      head: this.add.image(1, -50, 'ch2-hu-head').setScale(0.4),
+      armL: this.add.image(-9, -42, 'ch2-hu-arm').setOrigin(0.5, 0.1).setScale(0.4),
+      armR: this.add.image(9, -42, 'ch2-hu-arm').setOrigin(0.5, 0.1).setScale(0.4),
+      legL: this.add.image(-4, -18, 'ch2-hu-leg').setOrigin(0.5, 0.05).setScale(0.4),
+      legR: this.add.image(4, -18, 'ch2-hu-leg').setOrigin(0.5, 0.05).setScale(0.4),
     };
     this.figure.add(Object.values(this.parts));
     this.walker = { x: 120, y: WALK.ground, vy: 0, grounded: true, facing: 1, phase: 0 };
@@ -672,12 +809,12 @@ export default class Level21Scene extends Phaser.Scene {
     // spread across the table so the silhouette reads at a glance.
     this.lying = this.add.container(OR.tableX, OR.tableY - 10).setDepth(5).setVisible(false);
     this.lyingParts = {
-      body: this.add.image(0, 0, 'ch2-hu-body').setRotation(Math.PI / 2),
-      head: this.add.image(-32, -1, 'ch2-hu-head'),
-      armL: this.add.image(-4, -12, 'ch2-hu-arm').setRotation(Math.PI / 2 + 0.18).setOrigin(0.5, 0.1),
-      armR: this.add.image(4, 10, 'ch2-hu-arm').setRotation(Math.PI / 2 - 0.14).setOrigin(0.5, 0.1),
-      legL: this.add.image(30, -4, 'ch2-hu-leg').setRotation(Math.PI / 2 + 0.08).setOrigin(0.5, 0.05),
-      legR: this.add.image(31, 6, 'ch2-hu-leg').setRotation(Math.PI / 2 - 0.06).setOrigin(0.5, 0.05),
+      body: this.add.image(0, 0, 'ch2-hu-body').setRotation(Math.PI / 2).setScale(0.4),
+      head: this.add.image(-32, -1, 'ch2-hu-head').setScale(0.4),
+      armL: this.add.image(-4, -12, 'ch2-hu-arm').setRotation(Math.PI / 2 + 0.18).setOrigin(0.5, 0.1).setScale(0.4),
+      armR: this.add.image(4, 10, 'ch2-hu-arm').setRotation(Math.PI / 2 - 0.14).setOrigin(0.5, 0.1).setScale(0.4),
+      legL: this.add.image(30, -4, 'ch2-hu-leg').setRotation(Math.PI / 2 + 0.08).setOrigin(0.5, 0.05).setScale(0.4),
+      legR: this.add.image(31, 6, 'ch2-hu-leg').setRotation(Math.PI / 2 - 0.06).setOrigin(0.5, 0.05).setScale(0.4),
     };
     // Under the surgical light he is pale flesh, not a rooftop silhouette —
     // the player must SEE the limbs leave the table.
@@ -1591,6 +1728,7 @@ export default class Level21Scene extends Phaser.Scene {
     const limb = this.add
       .image(jar.img.x, jar.img.y, jar.limb)
       .setTint(0x6b5a54)
+      .setScale(0.4)
       .setDepth(5);
     this.tweens.add({
       targets: limb,
