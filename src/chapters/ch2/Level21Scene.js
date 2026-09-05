@@ -69,7 +69,10 @@ const ROLL1 = {
   ],
   gaps: [
     { from: 1900, to: 2040 },
-    { from: 2870, to: 3050, exit: true },
+    // FLOOR HOLE 2870→worldEdge: the only way on is DOWN. No far lip to hop
+    // onto — overshoot and you still fall into the shaft, never beach on a
+    // phantom floor past the hole.
+    { from: 2870, to: 3400, exit: true },
   ],
   killY: 2750,
   spawn: { x: 120, y: 1500 - ROLL_TUNE.radius },
@@ -818,7 +821,7 @@ export default class Level21Scene extends Phaser.Scene {
     };
     // Under the surgical light he is pale flesh, not a rooftop silhouette —
     // the player must SEE the limbs leave the table.
-    Object.values(this.lyingParts).forEach((img) => img.setTint(0xd8c0b4).setScale(1.7));
+    Object.values(this.lyingParts).forEach((img) => img.setTint(0xd8c0b4).setScale(0.68)); // 1.7x of the 0.4-drawn 2.5x textures
     this.lying.add(Object.values(this.lyingParts));
 
     // Blood pool spreading across the table, grows with every cut.
@@ -998,7 +1001,7 @@ export default class Level21Scene extends Phaser.Scene {
             .setOrigin(part.originX, part.originY)
             .setRotation(part.rotation)
             .setTint(0xd8c0b4)
-            .setScale(1.7)
+            .setScale(0.68)
             .setDepth(6);
           this.tweens.add({
             targets: drop,
@@ -2081,6 +2084,13 @@ export default class Level21Scene extends Phaser.Scene {
           if (this.collapseFig) this.collapseFig.setPosition(this.collapseX, 4880);
           if (this.collapseSparks) this.collapseSparks.setPosition(this.collapseX, 4880);
           this.cling = null;
+          if (this.phase === 'CLIMB') {
+            // Dying in the slot rewinds to the corridor mouth: phase AND
+            // camera, or the chase never restarts and the lens stays pinned
+            // to the vent while the body re-forms 2000px behind it.
+            this.phase = 'CHASE';
+            this.cameras.main.setBounds(4200, 4650, 3400, 1400);
+          }
         }
         this.torso.reset(this.rollSpawn);
         this.deathFxStarted = false;
