@@ -533,7 +533,7 @@ export default class Level22Scene extends Phaser.Scene {
   buildAttachSite() {
     // The torso rolls in from the left; the prosthetic waits where L2-1 ended.
     this.siteBlob = this.add.image(60, L2.ground - 15, 'ch2-blob').setDepth(5).setScale(0.5);
-    this.siteProsthetic = this.add.image(360, L2.ground - 20, 'ch2-prosthetic').setDepth(4);
+    this.siteProsthetic = this.add.image(360, L2.ground - 20, 'ch2-prosthetic').setDepth(4).setScale(0.4);
     this.siteGlow = this.add
       .image(360, L2.ground - 20, 'ch2-mote')
       .setScale(10)

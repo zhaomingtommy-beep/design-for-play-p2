@@ -341,26 +341,56 @@ export default class Level21Scene extends Phaser.Scene {
     g.generateTexture('ch2-bag', 46, 16);
     g.clear();
 
-    // The prosthetic: angular cold metal, AI-core glow at its heart.
-    g.fillStyle(0x39424e, 1);
-    g.beginPath();
-    g.moveTo(4, 2);
-    g.lineTo(22, 0);
-    g.lineTo(30, 12);
-    g.lineTo(26, 34);
-    g.lineTo(10, 40);
-    g.lineTo(0, 26);
-    g.closePath();
-    g.fillPath();
-    g.lineStyle(1.5, 0x9fd8e8, 0.9);
-    g.lineBetween(6, 6, 20, 4);
-    g.lineBetween(4, 24, 12, 36);
-    g.fillStyle(0x9fd8e8, 1);
-    g.fillCircle(15, 18, 4);
-    g.fillStyle(0xd8f4fc, 1);
-    g.fillCircle(15, 18, 1.8);
-    g.generateTexture('ch2-prosthetic', 30, 40);
-    g.clear();
+    // The prosthetic: a folded humanoid frame crouched on itself — cowled
+    // head, plate torso, limbs tucked in, the AI core burning at the
+    // sternum. Baked 2.5x; every call site renders it at 0.4.
+    {
+      const M = 0x39424e;
+      const D = 0x232b36;
+      const C = 0x9fd8e8;
+      // tucked legs
+      g.fillStyle(D, 1);
+      g.fillRoundedRect(22, 70, 14, 26, 5);
+      g.fillRoundedRect(39, 70, 14, 26, 5);
+      g.fillStyle(M, 1);
+      g.fillRoundedRect(25, 75, 9, 17, 4);
+      g.fillRoundedRect(42, 75, 9, 17, 4);
+      // plate torso
+      g.fillStyle(M, 1);
+      g.beginPath();
+      g.moveTo(22, 26);
+      g.lineTo(53, 26);
+      g.lineTo(60, 55);
+      g.lineTo(50, 74);
+      g.lineTo(25, 74);
+      g.lineTo(15, 55);
+      g.closePath();
+      g.fillPath();
+      // folded arms hugging the chest
+      g.fillStyle(D, 1);
+      g.fillRoundedRect(12, 34, 14, 30, 6);
+      g.fillRoundedRect(49, 34, 14, 30, 6);
+      g.fillStyle(M, 1);
+      g.fillRoundedRect(15, 39, 9, 21, 4);
+      g.fillRoundedRect(51, 39, 9, 21, 4);
+      // cowled head
+      g.fillStyle(D, 1);
+      g.fillRoundedRect(27, 3, 21, 22, 7);
+      g.fillStyle(M, 1);
+      g.fillRoundedRect(30, 6, 15, 16, 5);
+      g.fillStyle(C, 0.9);
+      g.fillRect(33, 12, 9, 2); // visor slit
+      // seams and the core
+      g.lineStyle(1.5, C, 0.85);
+      g.lineBetween(22, 30, 53, 30);
+      g.lineBetween(37, 30, 37, 66);
+      g.fillStyle(C, 1);
+      g.fillCircle(37, 44, 6);
+      g.fillStyle(0xd8f4fc, 1);
+      g.fillCircle(37, 44, 2.6);
+      g.generateTexture('ch2-prosthetic', 75, 100);
+      g.clear();
+    }
 
     // Terminal screen.
     g.fillStyle(0x0a0f0c, 1);
@@ -801,7 +831,7 @@ export default class Level21Scene extends Phaser.Scene {
     this.arm.add([seg1, seg2, claw]);
 
     // The prosthetic waiting on a side tray — the thing the explosion steals.
-    this.orProsthetic = this.add.image(OR.tableX + 220, OR.tableY - 18, 'ch2-prosthetic').setDepth(3);
+    this.orProsthetic = this.add.image(OR.tableX + 220, OR.tableY - 18, 'ch2-prosthetic').setDepth(3).setScale(0.4);
     this.add
       .image(OR.tableX + 220, OR.tableY - 18, 'ch2-mote')
       .setScale(7)
@@ -854,6 +884,8 @@ export default class Level21Scene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(62);
 
+    this.buildOrDressing();
+
     // Letterbox bars (scaleY-driven: Rectangle height is not tween-safe).
     this.barT = this.add.rectangle(0, 0, GAME_W, 56, 0x000000).setOrigin(0, 0).setScale(1, 0).setScrollFactor(0).setDepth(55);
     this.barB = this.add
@@ -862,6 +894,229 @@ export default class Level21Scene extends Phaser.Scene {
       .setScale(1, 0)
       .setScrollFactor(0)
       .setDepth(55);
+  }
+
+  // -------------------------------------------------------------- walk update
+
+  /**
+   * OR dressing pass: the lamp rig, the monitors, the instruments — the room
+   * earns the procedure. Everything the flat tile grid was missing.
+   */
+  buildOrDressing() {
+    const g = this.add.graphics().setDepth(2.5);
+
+    // Ceiling cable tray with drooping runs.
+    g.lineStyle(2, 0x1d2632, 1);
+    g.lineBetween(OR.roomL, 152, OR.roomR, 152);
+    [2920, 3080, 3330, 3560].forEach((cx) => {
+      g.lineStyle(1, 0x232d3a, 0.9);
+      g.lineBetween(cx, 152, cx + 14, 206);
+    });
+
+    // Grime: the tiles weep where the sterilizer mist never reaches.
+    [2900, 3150, 3410, 3700].forEach((sx, i) => {
+      g.fillStyle(0x080a10, 0.5);
+      g.fillRect(sx, 140, 5 + (i % 2) * 4, 90 + (i * 37) % 120);
+    });
+    // Floor sheen and the drain the blood is meant for.
+    const sheen = this.add
+      .image(OR.tableX, 592, 'ch2-mote')
+      .setScale(46, 2.4)
+      .setTint(0x5d6a78)
+      .setAlpha(0.05)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(2.4);
+    void sheen;
+    g.fillStyle(0x0a0e12, 1);
+    g.fillRect(OR.tableX + 90, 586, 54, 8);
+    g.lineStyle(1, 0x2a3442, 1);
+    for (let i = 0; i < 5; i++) g.lineBetween(OR.tableX + 96 + i * 10, 587, OR.tableX + 96 + i * 10, 593);
+
+    // The Ministry signs its work — high on the right wall, in frame.
+    this.add
+      .text(3440, 176, 'MINISTRY OF HEALTH — UPGRADE WING 7', {
+        fontFamily: 'ui-monospace, Menlo, monospace',
+        fontSize: '11px',
+        color: '#46525f',
+      })
+      .setOrigin(0.5)
+      .setDepth(2.6);
+    const plac = this.add.rectangle(OR.roomL + 76, 250, 88, 30, 0x3a0d10, 0.9).setDepth(2.6);
+    plac.setStrokeStyle(1, 0x8e1f24, 0.9);
+    this.add
+      .text(OR.roomL + 76, 250, 'BIOHAZARD', {
+        fontFamily: 'ui-monospace, Menlo, monospace',
+        fontSize: '11px',
+        color: '#b03036',
+      })
+      .setOrigin(0.5)
+      .setDepth(2.7);
+
+    // Surgical lamp rig: ceiling mount, two articulated arms, a lens head —
+    // the light cone finally has a source.
+    const lamp = this.add.graphics().setDepth(3.5);
+    lamp.fillStyle(0x232b36, 1);
+    lamp.fillRect(OR.tableX - 14, 140, 28, 14);
+    lamp.lineStyle(4, 0x39424e, 1);
+    lamp.lineBetween(OR.tableX, 154, OR.tableX - 58, 196);
+    lamp.lineBetween(OR.tableX - 58, 196, OR.tableX - 4, 224);
+    lamp.fillStyle(0x39424e, 1);
+    lamp.fillCircle(OR.tableX - 58, 196, 5);
+    lamp.fillRoundedRect(OR.tableX - 36, 220, 66, 18, 8);
+    lamp.fillStyle(0xcfe8f2, 0.95);
+    for (let i = 0; i < 4; i++) lamp.fillCircle(OR.tableX - 21 + i * 15, 229, 5);
+    this.orLampGlow = this.add
+      .image(OR.tableX - 3, 232, 'ch2-mote')
+      .setScale(7, 2.6)
+      .setTint(0xcfe8f2)
+      .setAlpha(0)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(3.4);
+
+    // Procedure monitor (left wall, in frame): the plan, signed and numbered.
+    const pm = { x: OR.roomL + 22, y: 396, w: 190, h: 112 };
+    g.fillStyle(0x05080d, 1);
+    g.fillRoundedRect(pm.x, pm.y, pm.w, pm.h, 6);
+    g.lineStyle(1, 0x2a4a5c, 0.9);
+    g.strokeRoundedRect(pm.x, pm.y, pm.w, pm.h, 6);
+    this.add
+      .text(pm.x + 10, pm.y + 8, 'PROCEDURE 44-C\nFULL SHELL TRANSFER', {
+        fontFamily: 'ui-monospace, Menlo, monospace',
+        fontSize: '10px',
+        color: '#9fd8e8',
+        lineSpacing: 3,
+      })
+      .setDepth(2.7);
+    this.add
+      .text(pm.x + 10, pm.y + 46, '1 HARVEST LIMBS  x4\n2 BRIDGE NEURAL LINK\n3 FIT MK-IV SHELL', {
+        fontFamily: 'ui-monospace, Menlo, monospace',
+        fontSize: '10px',
+        color: '#5d8a6a',
+        lineSpacing: 4,
+      })
+      .setDepth(2.7);
+    // the little diagram: a body, limbs crossed out in red
+    const dg = this.add.graphics().setDepth(2.7);
+    const dx = pm.x + 158;
+    const dy = pm.y + 58;
+    dg.lineStyle(1.5, 0x5d6a78, 1);
+    dg.strokeCircle(dx, dy - 24, 7);
+    dg.strokeRect(dx - 7, dy - 16, 14, 26);
+    dg.lineBetween(dx - 7, dy - 10, dx - 18, dy + 4);
+    dg.lineBetween(dx + 7, dy - 10, dx + 18, dy + 4);
+    dg.lineBetween(dx - 4, dy + 10, dx - 10, dy + 34);
+    dg.lineBetween(dx + 4, dy + 10, dx + 10, dy + 34);
+    dg.lineStyle(1.5, 0x8e1f24, 1);
+    [[dx - 18, dy + 4], [dx + 18, dy + 4], [dx - 10, dy + 34], [dx + 10, dy + 34]].forEach(([lx, ly]) => {
+      dg.lineBetween(lx - 5, ly - 5, lx + 5, ly + 5);
+      dg.lineBetween(lx - 5, ly + 5, lx + 5, ly - 5);
+    });
+
+    // Vitals monitors (right of the table): ECG runs live in the update loop.
+    const vm = { x: OR.tableX + 300, y: 420, w: 128, h: 64 };
+    g.fillStyle(0x05080d, 1);
+    g.fillRoundedRect(vm.x, vm.y, vm.w, vm.h, 6);
+    g.lineStyle(1, 0x2a4a3c, 0.9);
+    g.strokeRoundedRect(vm.x, vm.y, vm.w, vm.h, 6);
+    this.add
+      .text(vm.x + 8, vm.y + 5, 'CITIZEN-8 · HR 61', {
+        fontFamily: 'ui-monospace, Menlo, monospace',
+        fontSize: '9px',
+        color: '#2fbf71',
+      })
+      .setDepth(2.7);
+    this.ecgBox = { x: vm.x + 8, y: vm.y + 20, w: vm.w - 16, h: 38 };
+    this.ecgGfx = this.add.graphics().setDepth(2.8);
+    this.ecgT = 0;
+    // bridge status monitor below it
+    g.fillStyle(0x05080d, 1);
+    g.fillRoundedRect(vm.x, vm.y + 76, vm.w, 44, 6);
+    g.lineStyle(1, 0x2a4a5c, 0.9);
+    g.strokeRoundedRect(vm.x, vm.y + 76, vm.w, 44, 6);
+    this.bridgeStat = this.add
+      .text(vm.x + 8, vm.y + 84, 'AI BRIDGE\nSTANDBY_', {
+        fontFamily: 'ui-monospace, Menlo, monospace',
+        fontSize: '10px',
+        color: '#46525f',
+        lineSpacing: 3,
+      })
+      .setDepth(2.7);
+
+    // IV stand, still dripping for a subject who declined the anesthetic.
+    g.lineStyle(2, 0x39424e, 1);
+    g.lineBetween(OR.tableX - 120, 596, OR.tableX - 120, 470);
+    g.lineBetween(OR.tableX - 132, 470, OR.tableX - 108, 470);
+    g.fillStyle(0x3fbf8e, 0.5);
+    g.fillRoundedRect(OR.tableX - 130, 472, 20, 30, 4);
+    g.lineStyle(1, 0x3fbf8e, 0.6);
+    g.beginPath();
+    for (let i = 0; i <= 10; i++) {
+      const u = i / 10;
+      const q0x = Phaser.Math.Linear(OR.tableX - 120, OR.tableX - 90, u);
+      const q0y = Phaser.Math.Linear(502, 522, u);
+      const q1x = Phaser.Math.Linear(OR.tableX - 90, OR.tableX - 58, u);
+      const q1y = Phaser.Math.Linear(522, 458, u);
+      const tx = Phaser.Math.Linear(q0x, q1x, u);
+      const ty = Phaser.Math.Linear(q0y, q1y, u);
+      if (i === 0) g.moveTo(tx, ty);
+      else g.lineTo(tx, ty);
+    }
+    g.strokePath();
+
+    // Instrument tray: saw, forceps, clamp — laid out and waiting.
+    g.fillStyle(0x1a212c, 1);
+    g.fillRect(OR.tableX - 250, 540, 90, 8);
+    g.fillRect(OR.tableX - 246, 548, 6, 48);
+    g.fillRect(OR.tableX - 166, 548, 6, 48);
+    g.lineStyle(2, 0x8a94a8, 0.9);
+    g.lineBetween(OR.tableX - 240, 536, OR.tableX - 214, 536); // scalpel
+    g.lineBetween(OR.tableX - 206, 532, OR.tableX - 186, 538); // forceps
+    g.lineStyle(2, 0x8a94a8, 0.9);
+    g.strokeCircle(OR.tableX - 176, 534, 4); // clamp ring
+    g.lineBetween(OR.tableX - 176, 538, OR.tableX - 176, 542);
+
+    // The discharge tray the shell waits on — and its name tag, so the
+    // player knows WHAT that thing is before the explosion steals it.
+    g.fillStyle(0x1a212c, 1);
+    g.fillRect(OR.tableX + 176, 468, 90, 10);
+    g.fillRect(OR.tableX + 216, 478, 8, 118);
+    g.lineStyle(1, 0x9fd8e8, 0.5);
+    g.strokeCircle(OR.tableX + 220, OR.tableY - 18, 26); // the clamp ring
+    this.shellTag = this.add
+      .text(OR.tableX + 220, OR.tableY - 62, 'MK-IV SHELL — “UNIT 8”', {
+        fontFamily: 'ui-monospace, Menlo, monospace',
+        fontSize: '11px',
+        color: '#9fd8e8',
+      })
+      .setOrigin(0.5)
+      .setDepth(3)
+      .setAlpha(0.55);
+  }
+
+  /** Live ECG trace on the vitals monitor, redrawn during the cutscene. */
+  updateOrMonitors() {
+    const b = this.ecgBox;
+    if (!b || !this.ecgGfx) return;
+    this.ecgT += 1;
+    const g = this.ecgGfx;
+    g.clear();
+    // After the bridge connects the trace runs double-time — two rhythms
+    // in one chest.
+    const fast = this.csBeat >= 9;
+    g.lineStyle(1.5, fast ? 0x9fd8e8 : 0x2fbf71, 0.95);
+    g.beginPath();
+    for (let i = 0; i <= 42; i++) {
+      const u = i / 42;
+      const ph = (u * (fast ? 5 : 3) + this.ecgT * 0.02) % 1;
+      let v = 0;
+      if (ph < 0.06) v = -Math.sin((ph / 0.06) * Math.PI) * 14;
+      else if (ph < 0.12) v = Math.sin(((ph - 0.06) / 0.06) * Math.PI) * 5;
+      const x = b.x + u * b.w;
+      const y = b.y + b.h / 2 + v;
+      if (i === 0) g.moveTo(x, y);
+      else g.lineTo(x, y);
+    }
+    g.strokePath();
   }
 
   // -------------------------------------------------------------- walk update
@@ -1048,30 +1303,50 @@ export default class Level21Scene extends Phaser.Scene {
             ease: 'Quad.easeOut',
           });
           this.tweens.add({ targets: this.orLight, alpha: 0.5, duration: 1200 });
+          this.tweens.add({ targets: this.orLampGlow, alpha: 0.5, duration: 1200 });
         },
       },
-      { at: 1400, fn: () => this.typeText(this.csText, 'AI bridge status: READY.', 24) },
-      { at: 3400, fn: () => this.typeText(this.csText, 'ANESTHETIC: declined by subject.', 24) },
-      { at: 5200, fn: () => cutLimb(0) },
-      { at: 9200, fn: () => cutLimb(1) },
-      { at: 13200, fn: () => cutLimb(2) },
-      { at: 17200, fn: () => cutLimb(3) },
+      { at: 1400, fn: () => this.typeText(this.csText, 'MINISTRY OF HEALTH — PROCEDURE 44-C:\nFULL SHELL TRANSFER', 24) },
       {
-        at: 19400,
+        at: 3800,
+        fn: () => {
+          // The tag on the tray flashes — the player meets the shell BEFORE
+          // the explosion steals it.
+          this.typeText(this.csText, 'SHELL ASSIGNED: MK-IV COMBAT FRAME — “UNIT 8”.\nWaiting at the discharge tray.', 24);
+          this.tweens.add({
+            targets: this.shellTag,
+            alpha: 1,
+            scale: 1.15,
+            duration: 240,
+            yoyo: true,
+            repeat: 3,
+          });
+        },
+      },
+      { at: 6800, fn: () => this.typeText(this.csText, 'ANESTHETIC: declined by subject.\nLIMB EXCISION ×4 — beginning harvest.', 24) },
+      { at: 8600, fn: () => cutLimb(0) },
+      { at: 12400, fn: () => cutLimb(1) },
+      { at: 16200, fn: () => cutLimb(2) },
+      { at: 20000, fn: () => cutLimb(3) },
+      {
+        at: 22200,
         fn: () =>
           this.typeText(
             this.csText,
-            'EXCISION COMPLETE — residual mass: 31.4 kg.\nYour shell awaits at the discharge tray.',
+            'EXCISION COMPLETE — residual mass: 31.4 kg.\nNeural bridge: CONNECTED — motor cortex rerouted to torso.',
             22,
           ),
       },
       {
-        at: 23000,
-        fn: () => this.typeText(this.csText, 'AI bridge: CONNECTED.\n\nHello.', 20),
+        at: 26200,
+        fn: () => {
+          this.typeText(this.csText, 'Your shell is ready.\n\nHello.', 20);
+          this.bridgeStat.setText('AI BRIDGE\nCONNECTED').setColor('#9fd8e8');
+        },
       },
-      { at: 26600, fn: () => this.csExplosion() },
-      { at: 29400, fn: () => this.csRumble() },
-      { at: 32400, fn: () => this.csFloorDrops() },
+      { at: 29800, fn: () => this.csExplosion() },
+      { at: 32600, fn: () => this.csRumble() },
+      { at: 35400, fn: () => this.csFloorDrops() },
     ];
   }
 
@@ -1098,6 +1373,8 @@ export default class Level21Scene extends Phaser.Scene {
     this.cameras.main.shake(700, 0.02);
     this.csText.setText('');
     this.orLight.setAlpha(0);
+    if (this.orLampGlow) this.orLampGlow.setAlpha(0);
+    if (this.shellTag) this.shellTag.destroy(); // its own tag takes over mid-arc
 
     this.tweens.add({
       targets: this.lying,
@@ -1271,6 +1548,10 @@ export default class Level21Scene extends Phaser.Scene {
     this.typeText(this.csText, '— what is left of you.', 22);
     this.time.delayedCall(3600, () => {
       if (this.csText.active) this.tweens.add({ targets: this.csText, alpha: 0, duration: 900 });
+    });
+    // Why a meatball: the procedure manual has a protocol for this.
+    this.time.delayedCall(4400, () => {
+      if (this.phase === 'ROLL1') this.vessel.say('Limbs unrecoverable. Torso locomotion protocol engaged: roll.');
     });
   }
 
@@ -1997,7 +2278,7 @@ export default class Level21Scene extends Phaser.Scene {
     const gy = RAMP.endGroundY;
     g.fillStyle(0x181d26, 1);
     g.fillTriangle(px - 60, gy, px + 60, gy, px + 10, gy - 46);
-    this.prosthetic = this.add.image(px, gy - 26, 'ch2-prosthetic').setDepth(3);
+    this.prosthetic = this.add.image(px, gy - 26, 'ch2-prosthetic').setDepth(3).setScale(0.4);
     this.prostheticGlow = this.add
       .image(px, gy - 26, 'ch2-mote')
       .setScale(12)
@@ -2188,6 +2469,7 @@ export default class Level21Scene extends Phaser.Scene {
 
   update(_, deltaMs) {
     const dt = Math.min(deltaMs, 50) / 1000;
+    if (this.ecgGfx && (this.phase === 'CS' || this.phase === 'CS_PAN')) this.updateOrMonitors();
 
     switch (this.phase) {
       case 'WALK':
